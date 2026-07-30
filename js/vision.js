@@ -91,21 +91,87 @@ const Vision = {
     this.loaded = true;
   },
 
-  async startCamera(videoEl, overlayEl) {
+  /**
+   * Open the camera.
+   *
+   * @param {'environment'|'user'} facing
+   *   'environment' (rear) for the glasses view — the glasses look outward at
+   *   the world. 'user' (front) for enrolment, because you cannot photograph
+   *   your own face with a camera pointing away from you. Getting this wrong
+   *   makes enrolment impossible on a phone, which is exactly where we want
+   *   to demo.
+   *
+   * Errors are translated, because the raw ones are useless to a presenter:
+   * the single most common failure is another tab already holding the camera,
+   * and "NotReadableError" does not tell anyone to go and close it.
+   */
+  async startCamera(videoEl, overlayEl, opts = {}) {
     this.video = videoEl;
     this.overlay = overlayEl;
-    const tryGet = async (constraints) => navigator.mediaDevices.getUserMedia(constraints);
-    let stream;
-    try {
-      // Prefer the rear camera: the glasses look outward, at the world.
-      stream = await tryGet({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 960 } }, audio: false });
-    } catch (e) {
-      stream = await tryGet({ video: true, audio: false });
+    const facing = opts.facing || 'environment';
+    this.facing = facing;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('This browser cannot open a camera. Use Chrome, Edge or Safari, '
+        + 'and make sure the address bar says https:// or localhost.');
     }
-    videoEl.srcObject = stream;
-    await videoEl.play();
-    this._stream = stream;
-    return stream;
+
+    const attempts = [
+      { video: { facingMode: { ideal: facing }, width: { ideal: 960 } }, audio: false },
+      { video: { facingMode: facing }, audio: false },
+      { video: true, audio: false },          // any camera at all
+    ];
+
+    let lastErr = null;
+    for (const constraints of attempts) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoEl.srcObject = stream;
+        await videoEl.play();
+        this._stream = stream;
+        const track = stream.getVideoTracks()[0];
+        this.cameraLabel = track ? track.label : '';
+        return stream;
+      } catch (e) {
+        lastErr = e;
+        // A busy or missing camera will fail every constraint set, so stop early.
+        if (e.name === 'NotReadableError' || e.name === 'TrackStartError'
+            || e.name === 'NotAllowedError' || e.name === 'SecurityError') break;
+      }
+    }
+    throw new Error(this._cameraError(lastErr));
+  },
+
+  _cameraError(e) {
+    const n = e ? e.name : '';
+    if (n === 'NotReadableError' || n === 'TrackStartError') {
+      return 'The camera is already being used by something else — almost always '
+           + 'ANOTHER TAB of this app. Close the other tab (or any video call) and try again. '
+           + 'Only one page at a time can hold the camera.';
+    }
+    if (n === 'NotAllowedError' || n === 'PermissionDeniedError') {
+      return 'Camera permission was refused. Click the camera icon in the address bar '
+           + 'and allow it, then reload.';
+    }
+    if (n === 'NotFoundError' || n === 'DevicesNotFoundError') {
+      return 'No camera found on this device. You can still run everything with keys 1-9 '
+           + 'in the glasses view.';
+    }
+    if (n === 'SecurityError') {
+      return 'Blocked because this page is not on a secure origin. Use the https:// address, '
+           + 'or run it from http://localhost — never by opening the file directly.';
+    }
+    if (n === 'OverconstrainedError') {
+      return 'No camera matched what we asked for. Try the flip-camera button.';
+    }
+    return 'Could not open the camera' + (e && e.message ? ': ' + e.message : '.');
+  },
+
+  /** Swap front/rear. Useful on a laptop, essential on a phone. */
+  async flipCamera() {
+    const next = this.facing === 'user' ? 'environment' : 'user';
+    this.stopCamera();
+    return this.startCamera(this.video, this.overlay, { facing: next });
   },
 
   stopCamera() {

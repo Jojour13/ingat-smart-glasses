@@ -104,8 +104,13 @@
         </div>
         <div class="row" style="margin-bottom:10px">
           <button class="btn p" id="camOn">Open camera</button>
+          <button class="btn" id="flip" style="display:none">Flip camera</button>
           <span class="tiny" id="camNote">Models load from ./models &mdash; no network.</span>
         </div>
+        <p class="tiny" style="margin:-4px 0 10px">
+          <b>Only one page can hold the camera at a time.</b> If it will not open,
+          close any other tab of this app first.
+        </p>
         <label class="fld"><span>Name</span><input type="text" id="eName" placeholder="Mei Ling"></label>
         <label class="fld"><span>Relationship</span><input type="text" id="eRel" placeholder="Your daughter"></label>
         <label class="fld"><span>One shared memory</span>
@@ -238,14 +243,25 @@ $('camOn').onclick = async () => {
     $('vprog').textContent = 'loading models…';
     await Vision.loadModels((n, i, t) => { $('vprog').textContent = `loading ${n} (${i + 1}/${t})…`; });
     $('vprog').textContent = 'opening camera…';
-    await Vision.startCamera($('v'), null);
+    // Front camera: you are photographing your own face, so you need to see it.
+    await Vision.startCamera($('v'), null, { facing: 'user' });
     $('vph').style.display = 'none';
     $('cap').disabled = false;
-    $('camNote').textContent = 'Camera live. Models loaded from disk.';
+    $('flip').style.display = '';
+    $('camNote').textContent = 'Camera live — front-facing, so you can see yourself.';
   } catch (e) {
-    $('vprog').textContent = 'Failed: ' + e.message;
-    $('camNote').textContent = 'Serve over http://localhost (see README) — browsers block the camera on file://';
+    $('vprog').textContent = '';
+    $('camNote').innerHTML = `<span style="color:var(--red)">${e.message}</span>`;
     b.disabled = false;
+  }
+};
+
+$('flip').onclick = async () => {
+  try {
+    await Vision.flipCamera();
+    $('camNote').textContent = 'Switched to the ' + (Vision.facing === 'user' ? 'front' : 'rear') + ' camera.';
+  } catch (e) {
+    $('camNote').innerHTML = `<span style="color:var(--red)">${e.message}</span>`;
   }
 };
 

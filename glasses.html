@@ -52,9 +52,12 @@
         </div>
         <div class="placeholder" id="ph">
           <div style="font-size:15px;color:#c9c1b9;font-weight:600">Camera off</div>
-          <div style="max-width:340px;line-height:1.5">
+          <div style="max-width:360px;line-height:1.5">
             Press <b style="color:#e0d8d0">Start glasses</b> to load the local
             recognition models and open the camera. Nothing leaves this machine.
+            <br><br>
+            <span style="color:#7d756e">Only one page can hold the camera at a time &mdash;
+            close any other tab of this app first.</span>
           </div>
           <div class="mono" id="phProg" style="font-size:11px;color:#7d756e"></div>
         </div>
@@ -84,6 +87,7 @@
           <div class="row" style="margin-bottom:12px">
             <button class="btn p" id="btnStart">Start glasses</button>
             <button class="btn" id="btnStop" disabled>Stop</button>
+            <button class="btn" id="btnFlip" style="display:none">Flip camera</button>
             <button class="btn" id="btnWearer" title="Blacks the screen out — use this when a phone is standing in for the glasses">Wearer mode</button>
             <span class="spacer"></span>
             <button class="btn" id="btnCam" title="The physical camera cutoff on the AI Glasses">Camera switch: ON</button>
@@ -307,7 +311,9 @@ $('btnStart').onclick = async () => {
       $('phProg').textContent = `loading ${name} (${i + 1}/${n})…`;
     });
     $('phProg').textContent = 'opening camera…';
-    await Vision.startCamera($('video'), $('overlay'));
+    // Rear camera: the glasses look outward, at the world in front of him.
+    await Vision.startCamera($('video'), $('overlay'), { facing: 'environment' });
+    $('btnFlip').style.display = '';
     $('ph').style.display = 'none';
     $('led').classList.add('on');
     $('ledTxt').textContent = 'CAMERA ACTIVE';
@@ -330,9 +336,20 @@ $('btnStart').onclick = async () => {
     loop();
   } catch (e) {
     console.error(e);
-    $('phProg').textContent = 'Could not start: ' + e.message;
-    logLine('Camera/model failure: ' + e.message + ' — use keys 1-9 to simulate instead.', 'bad');
+    $('ph').style.display = 'grid';
+    $('phProg').innerHTML = `<span style="color:#e88">${e.message}</span>`;
+    logLine(e.message, 'bad');
+    logLine('Everything else still works — press 1-9 to simulate a person walking in.', '');
     b.disabled = false;
+  }
+};
+
+$('btnFlip').onclick = async () => {
+  try {
+    await Vision.flipCamera();
+    logLine('Switched to the ' + (Vision.facing === 'user' ? 'front' : 'rear') + ' camera.', '');
+  } catch (e) {
+    logLine(e.message, 'bad');
   }
 };
 
