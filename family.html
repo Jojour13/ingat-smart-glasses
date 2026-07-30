@@ -79,7 +79,11 @@
     </div>
 
     <div class="card" style="margin-top:16px">
-      <div class="hd"><h2>Enrolled</h2><span class="right pill" id="pplPill">0 people</span></div>
+      <div class="hd"><h2>Enrolled</h2>
+        <span class="right pill" id="pplPill">0 people</span></div>
+      <div class="bd" style="padding-bottom:0">
+        <div class="note" id="enrolSummary"></div>
+      </div>
       <div class="bd tight"><div id="pplList"></div></div>
     </div>
   </section>
@@ -733,6 +737,26 @@ function render() {
   $('pplPill').textContent = `${s.people.length} people`;
   $('storyPill').textContent = s.lifeStory.length;
 
+  // The single answer to "did that photo actually work?"
+  const usableCount = s.people.filter(p => p.descriptor && p.descriptor.length === 128).length;
+  const nameOnly = s.people.length - usableCount;
+  const sum = $('enrolSummary');
+  if (sum) {
+    if (!s.people.length) {
+      sum.className = 'note';
+      sum.innerHTML = `Nobody enrolled yet.`;
+    } else if (nameOnly === 0) {
+      sum.className = 'note g';
+      sum.innerHTML = `<b>${usableCount} of ${usableCount} can be recognised.</b> Every photo worked. `
+        + `Open the <a href="glasses.html">Glasses page</a> and press <b>1</b> to hear the first one.`;
+    } else {
+      sum.className = 'note w';
+      sum.innerHTML = `<b>${usableCount} of ${s.people.length} can be recognised.</b> `
+        + `${nameOnly} ${nameOnly === 1 ? 'is' : 'are'} name-only &mdash; the glasses will never identify `
+        + `${nameOnly === 1 ? 'that person' : 'those people'}. Look for the red badge below.`;
+    }
+  }
+
   const done = [s.people.length >= 3, s.meds.length > 0, s.appointments.length > 0,
                 s.places.length > 0, s.lifeStory.length >= 3, Object.keys(s.voices).length > 0,
                 !!s.consent.donor.signedTs].filter(Boolean).length;
@@ -744,13 +768,28 @@ function render() {
     b.classList.toggle('done', n > 0);
   });
 
-  listBlock($('pplList'), s.people, p => `
+  listBlock($('pplList'), s.people, p => {
+    const usable = p.descriptor && p.descriptor.length === 128;
+    return `
     <div class="prow">
       ${p.photo ? `<img class="avatar" src="${p.photo}" alt="">` : `<div class="avatar ph">${Fmt.initials(p.name)}</div>`}
-      <div class="who"><b>${esc(p.name)}</b><span>${esc(p.relation || '—')}</span>
-        <div class="voice sm" style="margin-top:5px;border-left-width:2px">${esc(Cues.fullPrompt(p))}</div></div>
+      <div class="who">
+        <b>${esc(p.name)}</b>
+        <span>${esc(p.relation || '—')}</span>
+        <div style="margin-top:4px">
+          ${usable
+            ? `<span class="pill g">CAN BE RECOGNISED</span>`
+            : `<span class="pill r">NAME ONLY &mdash; will not be recognised</span>`}
+        </div>
+        <div class="voice sm" style="margin-top:5px;border-left-width:2px">${esc(Cues.fullPrompt(p))}</div>
+        ${usable ? '' : `<div class="tiny" style="margin-top:4px;color:var(--red)">
+          No face was found in that photo, so the glasses cannot identify this person.
+          Remove and re-add with a clearer, front-on photo &mdash; or enrol them from the
+          camera on the <a href="index.html">Home page</a>, which works better.</div>`}
+      </div>
       <button class="btn sm" data-rm="${p.id}">Remove</button>
-    </div>`, 'Nobody yet. Drop some photos above.');
+    </div>`;
+  }, 'Nobody yet. Drop some photos above.');
   $('pplList').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
     if (confirm('Remove this person and destroy their face descriptor?')) {
       Store.audit('person.delete', Store.person(b.dataset.rm)?.name || b.dataset.rm);
