@@ -54,6 +54,12 @@ const Behaviour = {
     return (h > 12 ? h - 12 : h) + (h >= 12 ? 'pm' : 'am');
   },
 
+  /** Metres -> what a person would say. Never "873 m". */
+  _dist(m) {
+    return m >= 950 ? (m / 1000).toFixed(1) + ' km'
+         : Math.round(m / 50) * 50 + ' m';
+  },
+
   /** Events that indicate he was struggling at that moment. */
   CONFUSION: null,   // filled on first use, EV is defined after this file loads
 
@@ -203,7 +209,285 @@ const Behaviour = {
     };
   },
 
+  /* ======================================================================
+     3. REST-ACTIVITY RHYTHM — the strongest evidence in this whole file
+
+     Standard nonparametric actigraphy. These three measures come out of
+     wrist-worn accelerometry and have been run against very large cohorts:
+
+       IV  intradaily variability — how fragmented a day is. Hourly naps and
+           night waking push it up. Highest quartile: HR 1.82 for incident
+           cognitive impairment.
+       IS  interdaily stability — how alike one day is to the next. Lowest
+           quartile: HR 1.36.
+       RA  relative amplitude — the gap between his most active ten hours
+           (M10) and his least active five (L5). Lowest quartile: HR 1.85;
+           in one cohort the lowest tertile carried HR 5.08 for dementia.
+
+     A UK Biobank analysis of over 91,000 people found dementia and MCI risk
+     rose with lower M10, higher L5, lower amplitude and higher IV. The
+     authors' conclusion is the useful one: less stable, more fragmented
+     rest-activity rhythms may be an EARLY biomarker — visible before the
+     cognitive tests move.
+
+     We have an accelerometer and it is already running for wear detection,
+     so this costs one number every five minutes and nothing else.
+     ====================================================================*/
+
+  /**
+   * Epochs as a continuous series, plus each one's bin WITHIN THE LOCAL DAY.
+   *
+   * The epoch index counts five-minute blocks since the unix epoch, which is
+   * UTC. Taking `index % binsPerDay` therefore aligns the daily profile to UTC
+   * midnight, not to his midnight — eight hours out in Singapore. That does
+   * not affect IS or IV, which only care about spacing, but it puts M10 and L5
+   * at the wrong clock time, which is the one part of this a caregiver reads.
+   */
+  _epochs(days = 7) {
+    const per = 24 * 60 / Store.EPOCH_MIN;
+    const now = Store.epochIndex();
+    const from = now - days * per;
+    const byIndex = new Map();
+    Store.s.activity.forEach(e => { if (e.t >= from) byIndex.set(e.t, e.v); });
+    const series = [], bins = [];
+    for (let t = from; t <= now; t++) {
+      series.push(byIndex.has(t) ? byIndex.get(t) : 0);
+      bins.push(this.localBin(t));
+    }
+    return { series, bins, per, covered: byIndex.size };
+  },
+
+  /** Which five-minute bin of HIS day an epoch index falls in. */
+  localBin(t) {
+    const d = new Date(t * Store.EPOCH_MIN * 60000);
+    return Math.floor((d.getHours() * 60 + d.getMinutes()) / Store.EPOCH_MIN);
+  },
+
+  /**
+   * @returns {{IS,IV,RA,M10,L5,hours,enough}|null}
+   */
+  rhythm(days = 7) {
+    const { series, bins, per, covered } = this._epochs(days);
+    // Two full days is the floor at which IS means anything at all.
+    const enough = covered >= (2 * per * 0.4);
+    if (series.length < per * 2) return { enough: false, covered, need: per * 2 };
+
+    const n = series.length;
+    const mean = series.reduce((a, b) => a + b, 0) / n;
+    const ss = series.reduce((a, x) => a + (x - mean) ** 2, 0);
+    if (!ss) return { enough: false, covered, need: per * 2 };
+
+    // IV — mean squared difference between consecutive epochs, normalised
+    let diff = 0;
+    for (let i = 1; i < n; i++) diff += (series[i] - series[i - 1]) ** 2;
+    const IV = (n * diff) / ((n - 1) * ss);
+
+    // IS — variance of the average 24h profile against total variance
+    const profile = new Array(per).fill(0), counts = new Array(per).fill(0);
+    series.forEach((v, i) => { const b = bins[i]; profile[b] += v; counts[b]++; });
+    for (let h = 0; h < per; h++) profile[h] = counts[h] ? profile[h] / counts[h] : 0;
+    const psd = profile.reduce((a, x) => a + (x - mean) ** 2, 0);
+    const IS = (n * psd) / (per * ss);
+
+    // M10 / L5 — the most active ten and least active five consecutive hours,
+    // taken on the averaged daily profile
+    const win = (h) => {
+      const w = h * 60 / Store.EPOCH_MIN;
+      let best = -Infinity, worst = Infinity, bAt = 0, wAt = 0;
+      for (let s = 0; s < per; s++) {
+        let sum = 0;
+        for (let k = 0; k < w; k++) sum += profile[(s + k) % per];
+        const m = sum / w;
+        if (m > best) { best = m; bAt = s; }
+        if (m < worst) { worst = m; wAt = s; }
+      }
+      return { best, worst, bAt, wAt };
+    };
+    const m10 = win(10).best, w10 = win(10).bAt;
+    const l5o = win(5), l5 = l5o.worst;
+    const RA = (m10 + l5) ? (m10 - l5) / (m10 + l5) : 0;
+
+    const toHour = i => Math.round(i * Store.EPOCH_MIN / 60) % 24;
+    return {
+      enough,
+      IS: +IS.toFixed(3),
+      IV: +IV.toFixed(3),
+      RA: +RA.toFixed(3),
+      M10: +m10.toFixed(3), M10at: toHour(w10),
+      L5: +l5.toFixed(3),   L5at: toHour(l5o.wAt),
+      covered, days,
+      profile,
+    };
+  },
+
+  /** Plain-language reading of the rhythm. Descriptive, never diagnostic. */
+  rhythmNote(days = 7) {
+    const r = this.rhythm(days);
+    if (!r || !r.enough) {
+      return { level: 'none',
+               text: 'Not enough movement data yet. A few days of wearing them and his daily rhythm will show here.' };
+    }
+    const flags = [];
+    if (r.IV > 0.9) flags.push('his days are quite broken up');
+    if (r.IS < 0.4) flags.push('one day looks quite different from the next');
+    if (r.RA < 0.8) flags.push('the difference between his busiest and quietest hours is smaller than it might be');
+
+    if (!flags.length) {
+      return { level: 'ok', r,
+      // M10at and L5at are where each WINDOW starts, not a single moment, so
+      // the sentence has to say "from", or "quietest around 10pm" reads as a
+      // claim that he is asleep at ten and awake again by eleven.
+               text: `He keeps a steady daily rhythm — his busiest ten hours start around `
+                   + `${this._clockWord(r.M10at)}, and his quietest five from around `
+                   + `${this._clockWord(r.L5at)}.` };
+    }
+    return {
+      level: 'watch', r,
+      text: `Looking at his movement this week, ${flags.join(', and ')}. `
+          + `Broken-up and irregular daily rhythms are worth mentioning at his next appointment — `
+          + `they often respond to simple things like daylight in the morning and a consistent bedtime.`,
+    };
+  },
+
+  /* ======================================================================
+     4. LIFE-SPACE — how much of the world he still moves through
+
+     Life-space mobility predicts cognitive decline and the development of
+     Alzheimer's. GPS-derived area, perimeter and mean distance from home are
+     all smaller in mild-to-moderate AD than in controls, and area and
+     perimeter alone separate the two groups. People with restricted
+     life-space decline measurably faster.
+
+     What we deliberately do NOT do is keep a track. The daily numbers are
+     derived at the point of measurement and the route is never stored, so
+     this reports that his world is shrinking without recording where he went.
+     ====================================================================*/
+
+  lifespace(days = 7) {
+    const cut = Date.now() - days * 86400000;
+    const rows = Store.s.lifespace.filter(d => new Date(d.day).getTime() >= cut);
+    if (!rows.length) return { enough: false, days };
+    const maxM = Math.max(...rows.map(d => d.maxM));
+    const meanM = rows.reduce((a, d) => a + (d.fixes ? d.sumM / d.fixes : 0), 0) / rows.length;
+    const cells = new Set();
+    rows.forEach(d => d.cells.forEach(c => cells.add(c)));
+    const awayMin = rows.reduce((a, d) => a + d.awayMin, 0);
+    return {
+      enough: rows.length >= 3,
+      days,
+      daysWithData: rows.length,
+      furthestM: Math.round(maxM),
+      meanM: Math.round(meanM),
+      places: cells.size,
+      hoursOut: +(awayMin / 60).toFixed(1),
+      daysOut: rows.filter(d => d.awayMin > 5).length,
+    };
+  },
+
+  /** This week's world against the four before it. His own baseline again. */
+  lifespaceTrend() {
+    const wk = this.lifespace(7);
+    const cutA = Date.now() - 35 * 86400000, cutB = Date.now() - 7 * 86400000;
+    const prior = Store.s.lifespace.filter(d => {
+      const t = new Date(d.day).getTime();
+      return t >= cutA && t < cutB;
+    });
+    if (!wk.enough || prior.length < 6) {
+      return { known: false, week: wk,
+               text: 'Still learning how far he usually goes. After a few weeks this will compare each week against his own usual.' };
+    }
+    // Places must be counted PER WEEK and then averaged. Taking distinct cells
+    // across the whole four weeks and dividing by four undercounts badly,
+    // because he visits the same places every week — the same four cells over
+    // four weeks would read as one place a week, and this week's two would
+    // then look like an improvement.
+    const weekOf = d => Math.floor((cutB - new Date(d.day).getTime()) / (7 * 86400000));
+    const perWeek = new Map();
+    prior.forEach(d => {
+      const w = weekOf(d);
+      if (!perWeek.has(w)) perWeek.set(w, new Set());
+      d.cells.forEach(c => perWeek.get(w).add(c));
+    });
+    const weekCounts = [...perWeek.values()].map(s => s.size);
+    const priorPlacesPerWeek = weekCounts.length
+      ? weekCounts.reduce((a, b) => a + b, 0) / weekCounts.length : 0;
+    const priorFurthest = Math.max(...prior.map(d => d.maxM));
+
+    const dropPlaces = priorPlacesPerWeek ? 1 - (wk.places / priorPlacesPerWeek) : 0;
+    const dropRange = priorFurthest ? 1 - (wk.furthestM / priorFurthest) : 0;
+    const drop = Math.max(dropPlaces, dropRange);
+
+    // Say which measure actually moved. Reporting a range contraction as
+    // "fewer places" is the kind of small dishonesty that costs a family's
+    // trust the first time they check it against what they know.
+    const parts = [];
+    if (dropPlaces >= 0.25)
+      parts.push(`he went to about ${Math.round(dropPlaces * 100)}% fewer places than usual`);
+    if (dropRange >= 0.25)
+      parts.push(`he did not get as far from home — ${this._dist(wk.furthestM)} at the furthest, `
+               + `against ${this._dist(priorFurthest)} in the four weeks before`);
+
+    return {
+      known: true, week: wk, drop: +drop.toFixed(2), flagged: drop >= 0.4,
+      dropPlaces: +dropPlaces.toFixed(2), dropRange: +dropRange.toFixed(2),
+      baseline: { places: +priorPlacesPerWeek.toFixed(1), furthestM: Math.round(priorFurthest) },
+      text: drop >= 0.4
+        ? `His world has got smaller this week — ${parts.join(', and ')}. `
+        + `A shrinking range is one of the changes that tends to come before other things do, `
+        + `and it is often practical rather than medical: a bus route, the heat, or having nobody to go with.`
+        : `He is getting out about as much as usual.`,
+    };
+  },
+
   /* ========================================================= for the UI */
+
+  /**
+   * The averaged 24-hour movement profile, with M10 and L5 marked. This is
+   * the picture actigraphy papers print, and it is the one that makes
+   * "his days are broken up" legible to someone who is not a clinician.
+   */
+  rhythmChart(days = 7, o = {}) {
+    const r = this.rhythm(days);
+    const W = o.w || 560, H = o.h || 110;
+    const pad = { l: 10, r: 10, t: 10, b: 20 };
+    const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+    if (!r || !r.enough || !r.profile) {
+      return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Not enough movement data yet">
+        <text x="${W / 2}" y="${H / 2}" font-size="13" fill="#6e6660" text-anchor="middle"
+          font-family="-apple-system,Segoe UI,sans-serif">Not enough movement data yet</text></svg>`;
+    }
+
+    const p = r.profile, n = p.length;
+    const max = Math.max(...p) || 1;
+    const x = i => pad.l + (i / (n - 1)) * iw;
+    const y = v => pad.t + ih - (v / max) * ih;
+    const path = p.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const area = path + ` L${x(n - 1).toFixed(1)},${pad.t + ih} L${x(0).toFixed(1)},${pad.t + ih} Z`;
+
+    const perHour = 60 / Store.EPOCH_MIN;
+    const band = (startHour, hours, fill, label) => {
+      const bx = pad.l + (startHour * perHour / n) * iw;
+      const bw = (hours * perHour / n) * iw;
+      return `<rect x="${bx.toFixed(1)}" y="${pad.t}" width="${bw.toFixed(1)}" height="${ih}"
+                fill="${fill}" opacity="0.13"/>
+              <text x="${(bx + bw / 2).toFixed(1)}" y="${pad.t + 11}" font-size="9" fill="${fill}"
+                text-anchor="middle" font-family="ui-monospace,monospace">${label}</text>`;
+    };
+
+    const ticks = [0, 6, 12, 18].map(h =>
+      `<text x="${x(h * perHour).toFixed(1)}" y="${H - 6}" font-size="9" fill="#57504a"
+         text-anchor="middle" font-family="ui-monospace,monospace">${this._clockWord(h)}</text>`).join('');
+
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet"
+              role="img" aria-label="His average day: most active around ${this._clockWord(r.M10at)}, quietest around ${this._clockWord(r.L5at)}">
+      ${band(r.M10at, 10, '#2f5d50', 'most active')}
+      ${band(r.L5at, 5, '#57504a', 'quietest')}
+      <path d="${area}" fill="#b4472c" opacity="0.12"/>
+      <path d="${path}" fill="none" stroke="#b4472c" stroke-width="2" stroke-linejoin="round"/>
+      ${ticks}
+    </svg>`;
+  },
 
   /** Compact 24-hour bar chart. Hand-rolled SVG, no library. */
   clockChart(days = 7, o = {}) {

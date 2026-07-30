@@ -179,6 +179,9 @@ Volunteering this is worth more than hiding it.
 | Recorded family voice | **Real.** On-device, played instead of TTS when present |
 | Cognitive Trajectory Index | **Real maths.** History is seeded and **labelled as seeded in the UI**. The weights are a first pass, not a validated instrument |
 | Wear time, idle power-down | **Real, proxied** — from detection activity, not an IMU |
+| Rest-activity rhythm (IS / IV / RA / M10 / L5) | **Real maths**, from the phone accelerometer at one sample per five minutes. Seven days of history are seeded and **labelled as seeded on the card itself** |
+| Life-space (places, furthest, hours out) | **Real maths**, derived at the moment of measurement so no route is ever stored. Five weeks of history are seeded and **labelled as seeded on the card** |
+| Sundowning clock, social withdrawal | **Real.** Computed from this session's own event log, compared against his own previous weeks |
 | Place prompts | **Real, manually triggered.** These would be GPS geofences |
 | Presbycusis EQ, whisper mode | **Not simulated.** Firmware-level; a browser exposes rate and pitch only |
 | On-glasses execution | **Roadmap.** This models the phone-camera + audio-glasses configuration |

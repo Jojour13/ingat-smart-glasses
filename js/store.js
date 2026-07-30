@@ -76,6 +76,72 @@ function seedAppointments() {
   ];
 }
 
+/* Movement history, seeded the same way the CTI weeks are: openly, and
+   labelled as seeded wherever it is shown. Without it the two rhythm panels
+   would read "not enough data" on a fresh machine, which makes a working
+   feature look broken. The shape is deliberately ordinary — up around seven,
+   out mid-morning, quiet after nine — because the point of the panel is to
+   show what normal looks like before it changes. */
+function seedActivity(epochMin, days) {
+  const per = 24 * 60 / epochMin;
+  const now = Math.floor(Date.now() / 60000 / epochMin);
+  // Deterministic pseudo-noise. No Math.random: the demo must look identical
+  // every time it is opened, or two people comparing screens see two products.
+  const noise = k => (((k * 1103515245 + 12345) % 2147483648) + 2147483648)
+                     % 2147483648 / 2147483648;
+  const rows = [];
+  for (let t = now - days * per + 1; t <= now; t++) {
+    const d = new Date(t * epochMin * 60000);
+    const dayKey = Math.floor(t / per);
+    const h = d.getHours() + d.getMinutes() / 60;
+    // The daily profile is not identical from day to day — he wakes anywhere
+    // in a 90-minute window and does not nap every afternoon. That is what
+    // keeps interdaily stability near the 0.6-0.7 seen in real cohorts rather
+    // than the 0.99 a copy-pasted day would give.
+    const wake = 6.6 + noise(dayKey) * 1.5;
+    const naps = noise(dayKey + 700) > 0.45;
+    // Some days he is out all day, some days he barely leaves the flat. This
+    // day-level swing is what pulls interdaily stability down to the 0.6-0.8
+    // real cohorts show; without it a seeded week reads an impossible 0.95+.
+    const busy = 0.45 + noise(dayKey + 1300) * 0.85;
+    let v = 0.02;                                                  // asleep
+    if (h >= wake && h < wake + 2)      v = 0.55;                  // breakfast
+    else if (h >= wake + 2 && h < 12)   v = 0.95;                  // the morning out
+    else if (h >= 12 && h < 14)         v = naps ? 0.12 : 0.55;    // lunch, maybe a nap
+    else if (h >= 14 && h < 19)         v = 0.85;                  // afternoon
+    else if (h >= 19 && h < 22)         v = 0.35;                  // evening, sitting
+    // One broken night in the week. Real actigraphy is never flat overnight,
+    // and a seed with no night-time restlessness produces an IV no human has.
+    if (h >= wake) v *= busy;                                      // daytime only
+    if (dayKey % 5 === 2 && h >= 2 && h < 3.5) v = 0.45;
+    v *= 0.35 + noise(t) * 1.3;                                    // ×0.35-1.65
+    rows.push({ t, v: +v.toFixed(3), n: 1, seeded: true });
+  }
+  return rows;
+}
+
+/** Derived daily life-space. Never a route — see the note on state.lifespace. */
+function seedLifespace(days) {
+  const rows = [];
+  for (let n = days; n >= 1; n--) {
+    const d = new Date(Date.now() - n * 86400000);
+    const day = d.toISOString().slice(0, 10);
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    // The last week is deliberately smaller than the month before it, so the
+    // panel demonstrates the thing it exists to detect — the same reason the
+    // seeded CTI history has an inflection at week 8 instead of a flat line.
+    const recent = n <= 7;
+    // Recent beats weekend, or a single Saturday inside the contracted week
+    // would put the furthest-from-home figure straight back to normal.
+    const maxM = recent ? 900 : weekend ? 3400 : 2400;
+    const cells = recent ? ['1.352,103.819', '1.353,103.820']
+                         : ['1.352,103.819', '1.353,103.820', '1.357,103.824', '1.361,103.828'];
+    rows.push({ day, maxM, sumM: maxM * 0.45 * 6, fixes: 6, cells,
+                awayMin: recent ? 35 : weekend ? 190 : 145, seeded: true });
+  }
+  return rows;
+}
+
 /** A fresh retrieval ladder. Shared by faces, facts and object locations. */
 function newCue() {
   return { stage: 0, wins: 0, losses: 0, intervalH: 4, lastTrial: null };
@@ -84,7 +150,7 @@ function newCue() {
 /* Schema version. BUMP THIS whenever a new top-level collection is added,
    or migrate() will not run for anyone who already has a saved session and
    their new features will silently render empty. */
-const SCHEMA = 4;
+const SCHEMA = 5;
 
 function seedState() {
   return {
@@ -150,6 +216,24 @@ function seedState() {
     /* ---- Bluetooth tags on the things he loses ---------------------- */
     tags: [],                 // { id, name, deviceId, deviceName, paired, lastSeen, rssi }
 
+    /* ---- Actigraphy. One number per five minutes, nothing else. -----
+       This is what standard rest-activity research runs on: an activity
+       count per epoch. From it come IS, IV and RA, which are the validated
+       measures. Seven days at five-minute epochs is ~2,000 numbers. */
+    // Seeded, and labelled as seeded on the dashboard. Live samples from the
+    // accelerometer append to this and are indistinguishable in shape but
+    // carry no `seeded` flag, so the UI can always tell them apart.
+    activity: seedActivity(Store.EPOCH_MIN, Store.ACTIVITY_DAYS),
+
+    /* ---- Life-space, WITHOUT a location trail ------------------------
+       Life-space mobility predicts cognitive decline, and GPS-derived area
+       and distance-from-home separate mild AD from controls. But storing a
+       track of everywhere someone went is exactly the surveillance this
+       product refuses to be. So we keep only DERIVED numbers per day, plus
+       coarse ~110m grid cells to count distinct places. The route is never
+       reconstructable. */
+    lifespace: seedLifespace(35),   // { day, maxM, sumM, cells:[], awayMin, fixes }
+
     /* ---- Geofence. A safe zone, not a map with a dot on it. --------- */
     zones: [],                // { id, label, lat, lng, radiusM }
     geo: { inZone: null, lastFix: null, lastEvent: null },
@@ -209,8 +293,17 @@ function migrate(s) {
   (s.objects || []).forEach(o => { if (!o.cue) o.cue = newCue(); if (!o.trials) o.trials = []; });
   if (!s.zones)   s.zones   = [];
   if (!s.geo)     s.geo     = { inZone: null, lastFix: null, lastEvent: null };
-  if (!s.plan)    s.plan    = fresh.plan;
-  if (!s.tags)    s.tags    = [];
+  if (!s.plan)      s.plan      = fresh.plan;
+  if (!s.tags)      s.tags      = [];
+  // v5 — movement history. Seeded rather than empty, because an empty array
+  // makes the two rhythm panels read "not enough data" forever on a machine
+  // that has never had the accelerometer running. Stale seeded epochs are
+  // dropped: they are indexed in absolute time, so a session left open for a
+  // fortnight would otherwise show a week-old rhythm as if it were this week.
+  const cutoff = Store.epochIndex() - Store.ACTIVITY_DAYS * 24 * 60 / Store.EPOCH_MIN;
+  if (!s.activity || !s.activity.length
+      || !s.activity.some(r => r.t >= cutoff)) s.activity = fresh.activity;
+  if (!s.lifespace || !s.lifespace.length) s.lifespace = fresh.lifespace;
   if (s.consent && s.consent.purposes) {
     const p = s.consent.purposes;
     if (p.conversation === undefined) p.conversation = false;
@@ -447,6 +540,63 @@ const Store = {
     const t = this.s.tags.find(x => x.id === id);
     if (!t) return;
     t.lastSeen = { place: where || null, ts: Date.now(), rssi: rssi ?? null };
+    this.save();
+  },
+
+  /* ---------------------------------------------------- actigraphy
+     Five-minute epochs, seven days kept. The epoch index is minutes since
+     the unix epoch divided by five, so it survives reloads and time zones. */
+  EPOCH_MIN: 5,
+  ACTIVITY_DAYS: 7,
+
+  epochIndex(ts = Date.now()) { return Math.floor(ts / 60000 / this.EPOCH_MIN); },
+
+  recordActivity(magnitude) {
+    const t = this.epochIndex();
+    const a = this.s.activity;
+    const last = a[a.length - 1];
+    if (last && last.t === t) {
+      // running mean within the epoch
+      last.n = (last.n || 1) + 1;
+      last.v = last.v + (magnitude - last.v) / last.n;
+    } else {
+      a.push({ t, v: magnitude, n: 1 });
+    }
+    const keep = this.ACTIVITY_DAYS * 24 * 60 / this.EPOCH_MIN;
+    if (a.length > keep) this.s.activity = a.slice(-keep);
+  },
+
+  /* ---------------------------------------------------- life-space
+     A day's worth of derived mobility. Never a coordinate beyond home. */
+  recordFix(fix, home) {
+    if (!fix || !home) return;
+    const day = this.todayKey();
+    let d = this.s.lifespace.find(x => x.day === day);
+    if (!d) {
+      d = { day, maxM: 0, sumM: 0, fixes: 0, cells: [], awayMin: 0, lastTs: null };
+      this.s.lifespace.push(d);
+      if (this.s.lifespace.length > 60) this.s.lifespace = this.s.lifespace.slice(-60);
+    }
+    const m = Geo.distance(home, fix);
+    d.maxM = Math.max(d.maxM, Math.round(m));
+    d.sumM += m;
+    d.fixes++;
+    // ~0.001 degree is about 110 m. Coarse enough that the cell is a
+    // neighbourhood, not an address.
+    const cell = fix.lat.toFixed(3) + ',' + fix.lng.toFixed(3);
+    if (!d.cells.includes(cell)) d.cells.push(cell);
+
+    // Time away must come from the CLOCK, not from a count of fixes — fixes
+    // arrive irregularly, so counting them measured the sampling rate rather
+    // than how long he was out. Each fix carries the time since the last one,
+    // capped so a gap in coverage cannot invent an afternoon.
+    const now = fix.ts || Date.now();
+    const outside = m > ((this.s.zones[0] && this.s.zones[0].radiusM) || 250);
+    if (outside) {
+      const gapMin = d.lastTs ? Math.min((now - d.lastTs) / 60000, 10) : 1;
+      d.awayMin += Math.max(gapMin, 0);
+    }
+    d.lastTs = now;
     this.save();
   },
 

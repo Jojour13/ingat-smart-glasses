@@ -99,6 +99,48 @@
         </p>
       </div>
     </div>
+
+    <div class="card">
+      <div class="hd"><h2>His daily rhythm</h2>
+        <span class="right pill" id="rhythmPill">&mdash;</span></div>
+      <div class="bd">
+        <div id="rhythmChart"></div>
+        <div class="kpis" style="grid-template-columns:1fr 1fr 1fr;margin:12px 0">
+          <div class="kpi"><b id="rIS">&ndash;</b><span>day-to-day sameness</span></div>
+          <div class="kpi"><b id="rIV">&ndash;</b><span>broken-up-ness</span></div>
+          <div class="kpi"><b id="rRA">&ndash;</b><span>busy vs quiet gap</span></div>
+        </div>
+        <div id="rhythmNote"></div>
+        <p class="tiny" id="rhythmSrc" style="margin:10px 0 0"></p>
+        <p class="tiny" style="margin:10px 0 0">
+          The same three measures wrist actigraphy research uses. In a UK Biobank
+          study of over 91,000 people, more broken-up and less consistent daily
+          rhythms carried a higher risk of dementia and mild cognitive impairment
+          &mdash; and they show up <b>before</b> the cognitive tests move.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2>How big his world is</h2>
+        <span class="right pill" id="lsPill">&mdash;</span></div>
+      <div class="bd">
+        <div class="kpis" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:12px">
+          <div class="kpi"><b id="lsPlaces">0</b><span>places visited</span></div>
+          <div class="kpi"><b id="lsFurthest">0</b><span>furthest from home</span></div>
+          <div class="kpi"><b id="lsHours">0</b><span>hours out</span></div>
+        </div>
+        <div id="lsNote"></div>
+        <p class="tiny" id="lsSrc" style="margin:10px 0 0"></p>
+        <p class="tiny" style="margin:10px 0 0">
+          Life-space mobility predicts cognitive decline, and GPS-measured range
+          separates mild Alzheimer's from controls. <b>No route is stored.</b>
+          Distance from home and a coarse neighbourhood cell are worked out at the
+          moment of measurement and the coordinates are thrown away, so this can
+          tell you his world is shrinking without recording where he went.
+        </p>
+      </div>
+    </div>
   </div>
 
   <div class="grid g-care">
@@ -681,6 +723,44 @@ function renderBehaviour() {
   $('sVisits').textContent = soc.visits;
   $('sPeople').textContent = soc.distinctPeople;
   $('sMinutes').textContent = soc.minutes;
+
+  /* rest-activity rhythm */
+  $('rhythmChart').innerHTML = Behaviour.rhythmChart(7);
+  const rn = Behaviour.rhythmNote(7);
+  const r = rn.r;
+  $('rIS').textContent = r ? r.IS.toFixed(2) : '–';
+  $('rIV').textContent = r ? r.IV.toFixed(2) : '–';
+  $('rRA').textContent = r ? r.RA.toFixed(2) : '–';
+  $('rhythmPill').textContent = rn.level === 'none' ? 'learning'
+                              : rn.level === 'ok' ? 'steady' : 'worth a look';
+  $('rhythmPill').className = 'right pill ' + (rn.level === 'ok' ? 'g' : rn.level === 'watch' ? 'w' : '');
+  $('rhythmNote').innerHTML =
+    `<div class="note ${rn.level === 'ok' ? 'g' : rn.level === 'watch' ? 'w' : ''}">${rn.text}</div>`;
+
+  /* Provenance. A demo that quietly presents seeded history as measured data
+     is the one thing that would deserve to lose this competition. */
+  const prov = (rows, live) => {
+    const seeded = rows.filter(r => r.seeded).length;
+    if (!rows.length) return '';
+    if (!seeded) return `<b>Live.</b> All of this came from ${live}.`;
+    if (seeded === rows.length)
+      return `<b>Seeded history</b>, shown so the panel is not empty. Nothing here was measured. ` +
+             `Live samples arrive as soon as ${live}.`;
+    return `<b>Mixed.</b> ${rows.length - seeded} of ${rows.length} from ${live}; the rest is seeded.`;
+  };
+  $('rhythmSrc').innerHTML = prov(Store.s.activity, 'the glasses are worn');
+  $('lsSrc').innerHTML = prov(Store.s.lifespace, 'location is switched on');
+
+  /* life-space */
+  const ls = Behaviour.lifespace(7);
+  $('lsPlaces').textContent = ls.enough ? ls.places : '–';
+  $('lsFurthest').textContent = ls.enough
+    ? (ls.furthestM >= 1000 ? (ls.furthestM / 1000).toFixed(1) + 'km' : ls.furthestM + 'm') : '–';
+  $('lsHours').textContent = ls.enough ? ls.hoursOut : '–';
+  const lt = Behaviour.lifespaceTrend();
+  $('lsPill').textContent = !lt.known ? 'learning' : lt.flagged ? `smaller` : 'as usual';
+  $('lsPill').className = 'right pill ' + (!lt.known ? '' : lt.flagged ? 'r' : 'g');
+  $('lsNote').innerHTML = `<div class="note ${!lt.known ? '' : lt.flagged ? 'r' : 'g'}">${lt.text}</div>`;
 
   const w = Behaviour.withdrawal();
   if (!w.known) {

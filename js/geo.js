@@ -66,6 +66,11 @@ const Geo = {
 
   _onFix(fix) {
     Store.s.geo.lastFix = fix;
+    // Life-space, derived at the point of measurement. The coordinates are
+    // used and discarded; only distance-from-home and a coarse cell survive,
+    // so his route is never reconstructable from what we keep.
+    const home = Store.s.zones[0];
+    if (home && Store.recordFix) Store.recordFix(fix, home);
     const zone = this.nearestZone(fix);
     const inside = !!zone;
     const was = Store.s.geo.inZone;

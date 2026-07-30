@@ -117,6 +117,11 @@ const Motion = {
       // low-pass so a single jolt does not dominate, and jitter does not count
       this.magnitude = this.magnitude * 0.8 + delta * 0.2;
       if (delta > this.THRESHOLD) this._registerMovement();
+
+      // Feed the actigraphy epoch. This is the same signal wrist actigraphy
+      // records, and it is what interdaily stability, intradaily variability
+      // and relative amplitude are computed from.
+      if (typeof Store !== 'undefined' && Store.recordActivity) Store.recordActivity(delta);
     }
     this._prev = mag;
   },
