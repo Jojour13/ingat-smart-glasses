@@ -57,8 +57,14 @@
           <div class="drop" id="drop">
             <b>Drop photos here</b>
             <span class="sub">or click to choose &mdash; several at once is fine</span>
-            <input type="file" id="files" accept="image/*" multiple hidden>
+            <input type="file" id="files" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/*" multiple hidden>
           </div>
+          <p class="tiny" style="margin:8px 0 0">
+            JPG, PNG, WebP, GIF and BMP all work. <b>iPhone HEIC does not</b> outside
+            Safari &mdash; set <i>Settings &rsaquo; Camera &rsaquo; Formats &rsaquo; Most
+            Compatible</i>, or share the photo to yourself, which converts it to JPG.
+            Group photos are fine: each face becomes its own entry.
+          </p>
           <div id="dropStatus" class="telemetry" style="margin-top:9px"></div>
           <div class="thumbs" id="thumbs" style="margin-top:12px"></div>
         </div>
@@ -357,15 +363,28 @@ async function intake(files) {
 
   const t0 = performance.now();
   let faceCount = 0, emptyPhotos = 0, groupPhotos = 0;
+  const errors = [];
 
   for (let i = 0; i < imgs.length; i++) {
-    $('dropStatus').innerHTML = `scanning <b>${i + 1}/${imgs.length}</b> &mdash; ${esc(imgs[i].name.slice(0, 24))}`;
-    const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(imgs[i]); });
-    const img = new Image(); img.src = dataUrl;
-    await new Promise(r => { img.complete ? r() : (img.onload = r, img.onerror = r); });
+    const pct = Math.round(i / imgs.length * 100);
+    $('dropStatus').innerHTML =
+      `<div class="bar" style="margin-bottom:5px"><i style="width:${pct}%"></i></div>`
+      + `opening <b>${i + 1}/${imgs.length}</b> &mdash; ${esc(imgs[i].name.slice(0, 28))}`;
 
+    const loaded = await Vision.loadImage(imgs[i]);
+    if (loaded.error) {
+      errors.push(`${imgs[i].name.slice(0, 22)}: ${loaded.error}`);
+      continue;
+    }
+
+    $('dropStatus').innerHTML =
+      `<div class="bar" style="margin-bottom:5px"><i style="width:${pct}%"></i></div>`
+      + `looking for faces in <b>${i + 1}/${imgs.length}</b> &mdash; ${esc(imgs[i].name.slice(0, 28))}`;
+    await new Promise(r => setTimeout(r, 0));   // let the browser paint
+
+    const dataUrl = loaded.thumb;
     let faces = [];
-    try { faces = await Vision.facesFromImage(img); } catch (e) { console.warn('facesFromImage', e); }
+    try { faces = await Vision.facesFromImage(loaded.img); } catch (e) { console.warn('facesFromImage', e); }
 
     if (!faces.length) {
       // keep it in the queue so they can still add the person by name
@@ -396,11 +415,14 @@ async function intake(files) {
   }
 
   const ms = Math.round(performance.now() - t0);
+  const per = imgs.length ? Math.round(ms / imgs.length) : 0;
   $('dropStatus').innerHTML =
     `<b>${faceCount}</b> face${faceCount === 1 ? '' : 's'} found across ${imgs.length} photo${imgs.length === 1 ? '' : 's'}`
-    + ` in ${ms}ms &middot; backend <b>${Vision.backend}</b>`
+    + ` &middot; ${(ms / 1000).toFixed(1)}s total, ${per}ms each &middot; backend <b>${Vision.backend}</b>`
+    + (Vision.backend === 'cpu' ? ` <span style="color:var(--amber)">(CPU &mdash; slower; the GPU path was unavailable)</span>` : '')
     + (groupPhotos ? `<br><span style="color:var(--green)">${groupPhotos} group photo${groupPhotos === 1 ? '' : 's'} split into separate people &mdash; name each one.</span>` : '')
-    + (emptyPhotos ? `<br><span style="color:var(--red)">${emptyPhotos} with no face found.</span> Front-on, well lit, face at least ~100px across works best.` : '');
+    + (emptyPhotos ? `<br><span style="color:var(--red)">${emptyPhotos} with no face found.</span> Front-on, well lit, face at least ~100px across works best.` : '')
+    + (errors.length ? `<br><span style="color:var(--red)">${errors.length} could not be opened:</span><br>` + errors.map(e => `<span class="tiny">${esc(e)}</span>`).join('<br>') : '');
   renderThumbs(); renderTagger();
 }
 

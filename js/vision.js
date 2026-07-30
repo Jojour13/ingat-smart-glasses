@@ -273,6 +273,91 @@ const Vision = {
     }
   },
 
+  /**
+   * Turn a picked File into something we can actually detect faces in.
+   *
+   * Three things bite here, and all three look identical to a user ("it says
+   * no face found"):
+   *
+   *   1. HEIC / HEIF. iPhones shoot this by default. Only Safari can decode it
+   *      — Chrome and Edge cannot, at all. Detected up front so we can say so
+   *      instead of silently failing.
+   *   2. EXIF rotation. iPhone JPEGs are very often stored sideways with an
+   *      orientation tag. A face rotated 90 degrees is not detected, so an
+   *      otherwise perfect photo returns nothing. createImageBitmap with
+   *      imageOrientation:'from-image' applies the tag.
+   *   3. Size. A 12MP photo is slow to decode and, as a data URL, is several
+   *      megabytes — enough that two or three of them exceed the localStorage
+   *      quota on their own.
+   *
+   * Returns { img, thumb, error }.
+   */
+  async loadImage(file, thumbMax = 420) {
+    const name = (file.name || '').toLowerCase();
+    const heic = /\.(heic|heif)$/.test(name)
+              || file.type === 'image/heic' || file.type === 'image/heif';
+    if (heic && !this._canDecodeHeic()) {
+      return { img: null, thumb: null, error:
+        'HEIC/HEIF is an Apple format that this browser cannot open. On your iPhone: '
+        + 'Settings > Camera > Formats > Most Compatible, or share the photo to yourself '
+        + 'which converts it to JPEG. Every other common format works.' };
+    }
+
+    let bitmap = null;
+    try {
+      // from-image applies the EXIF rotation tag; without it, sideways photos
+      // silently fail detection.
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch (e) {
+      // older browsers, or a format the decoder refused
+      try {
+        const url = URL.createObjectURL(file);
+        const im = new Image();
+        im.src = url;
+        await new Promise((res, rej) => { im.onload = res; im.onerror = rej; });
+        URL.revokeObjectURL(url);
+        bitmap = im;
+      } catch (e2) {
+        return { img: null, thumb: null, error:
+          'This file could not be opened as an image (' + (file.type || 'unknown type') + ').' };
+      }
+    }
+
+    // An ImageBitmap exposes intrinsic size on width/height; an HTMLImageElement
+    // exposes it on naturalWidth/naturalHeight, where width/height are LAYOUT
+    // size and can be zero or wrong for a detached element. Prefer the
+    // intrinsic pair so the fallback path measures the same thing.
+    const w = bitmap.naturalWidth || bitmap.width;
+    const h = bitmap.naturalHeight || bitmap.height;
+    if (!w || !h) return { img: null, thumb: null, error: 'The image decoded to zero size.' };
+
+    // Working copy for detection — capped so a 12MP photo is not decoded at
+    // full size four times over.
+    const workMax = 1024;
+    const ws = Math.min(1, workMax / Math.max(w, h));
+    const work = document.createElement('canvas');
+    work.width = Math.round(w * ws);
+    work.height = Math.round(h * ws);
+    work.getContext('2d').drawImage(bitmap, 0, 0, work.width, work.height);
+
+    // Small JPEG for storage. Never keep the original data URL.
+    const ts = Math.min(1, thumbMax / Math.max(w, h));
+    const tc = document.createElement('canvas');
+    tc.width = Math.round(w * ts);
+    tc.height = Math.round(h * ts);
+    tc.getContext('2d').drawImage(bitmap, 0, 0, tc.width, tc.height);
+
+    if (bitmap.close) bitmap.close();
+    return { img: work, thumb: tc.toDataURL('image/jpeg', 0.78), error: null,
+             original: { w, h } };
+  },
+
+  _canDecodeHeic() {
+    // Safari only, in practice.
+    return typeof navigator !== 'undefined'
+        && /^((?!chrome|android|edg).)*safari/i.test(navigator.userAgent || '');
+  },
+
   /** Downscale to a sane working size. Returns a canvas, or the original. */
   async _fit(imgEl, max) {
     const w = imgEl.naturalWidth || imgEl.width, h = imgEl.naturalHeight || imgEl.height;
