@@ -39,9 +39,31 @@ const Memory = {
   BUFFER_MS: 6 * 60 * 1000, // nothing older than six minutes is retained
   MAX_CHARS: 4000,
 
-  _buf: [],                 // [{ ts, text }] — VOLATILE. Never persisted.
+  /* ==========================================================================
+     ONE CONVERSATION PER PERSON
+
+     Grandpa talks to his granddaughter. She goes to make tea. His grandson
+     comes in. Then she comes back.
+
+     A single shared buffer gets this wrong in the worst way: the moment the
+     grandson appeared, her conversation was thrown away, and when she returned
+     the thread was gone. Both of them then look like one incoherent
+     conversation to the fact extractor.
+
+     So each person gets their own session. Switching people PARKS the current
+     one instead of wiping it — she can walk out and come back and the thread
+     survives. Sessions only end when they go quiet for a while, and only then
+     do they give up their facts.
+
+     Two enrolled people in view at once is a group conversation, keyed on the
+     set of them, because a fact from that conversation belongs to both.
+     ========================================================================*/
+  SESSION_IDLE_MS: 12 * 60 * 1000,   // silence that ends a conversation
+  _sessions: new Map(),              // key -> { people[], buf[], started, lastHeard }
+  _activeKey: null,
   _rec: null,
   _idleTimer: null,
+  _sweeper: null,
 
   get supported() {
     return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -58,14 +80,36 @@ const Memory = {
    * An enrolled person came into view. Start listening — and ONLY now.
    * @param {string} personId
    */
-  start(personId) {
-    if (!this.permitted || !this.supported) return false;
-    if (this.listening && this.activePersonId === personId) {
-      this._touch();
-      return true;
+  /** Stable key for one person, or for a group seen together. */
+  _key(ids) { return [...ids].sort().join('+'); },
+
+  get _active() { return this._activeKey ? this._sessions.get(this._activeKey) : null; },
+  get _buf() { return this._active ? this._active.buf : []; },
+  get activePersonId() {
+    const s = this._active;
+    return s && s.people.length === 1 ? s.people[0] : null;
+  },
+  get activePeople() { return this._active ? this._active.people.slice() : []; },
+
+  /**
+   * These people are in view now.
+   * @param {string|string[]} who  one person, or everyone currently visible
+   */
+  start(who) {
+    const ids = (Array.isArray(who) ? who : [who]).filter(Boolean);
+    if (!ids.length || !this.permitted || !this.supported) return false;
+    const key = this._key(ids);
+
+    if (this.listening && this._activeKey === key) { this._touch(); return true; }
+
+    // Park, do not destroy. She may be back in two minutes.
+    this._activeKey = key;
+    if (!this._sessions.has(key)) {
+      this._sessions.set(key, { people: ids, buf: [], started: Date.now(), lastHeard: Date.now() });
     }
-    this.stop(false);
-    this.activePersonId = personId;
+    if (!this._sweeper) this._sweeper = setInterval(() => this.sweep(), 30000);
+
+    if (this._rec) { try { this._rec.stop(); } catch (_) {} this._rec = null; }
 
     try {
       const R = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -84,7 +128,7 @@ const Memory = {
       r.start();
       this.listening = true;
       this._touch();
-      this.onState && this.onState(true, personId);
+      this.onState && this.onState(true, ids.length === 1 ? ids[0] : ids);
       return true;
     } catch (e) {
       console.warn('memory: could not start listening', e);
@@ -93,51 +137,90 @@ const Memory = {
     }
   },
 
-  /** They left, or we are done. Propose a fact, then wipe the buffer. */
+  /**
+   * End the ACTIVE conversation. Harvests its facts, then destroys its buffer.
+   * @param {boolean} propose
+   */
   stop(propose = true) {
     clearTimeout(this._idleTimer);
-    if (this._rec) {
-      this.listening = false;
-      try { this._rec.stop(); } catch (_) {}
-      this._rec = null;
-    }
-    const personId = this.activePersonId;
-    let facts = null;
-    if (propose && this._buf.length) facts = this._propose(personId);
-    this._wipe();
-    this.activePersonId = null;
+    if (this._rec) { try { this._rec.stop(); } catch (_) {} this._rec = null; }
     this.listening = false;
+
+    const key = this._activeKey;
+    let facts = null;
+    if (key) facts = this._close(key, propose);
+    this._activeKey = null;
     this.onState && this.onState(false, null);
-    return facts;                      // array of proposed facts, or null
+    return facts;
   },
 
-  /** Explicitly destroy everything heard. Called on stop, and on demand. */
-  _wipe() {
-    this._buf.length = 0;
+  /** Close one session by key. Harvest, record the visit, then wipe. */
+  _close(key, propose = true) {
+    const s = this._sessions.get(key);
+    if (!s) return null;
+    let facts = null;
+    if (propose && s.buf.length) facts = this._propose(s);
+    if (typeof Vault !== 'undefined') Vault.recordVisit(s);
+    s.buf.length = 0;                  // explicit destruction
+    this._sessions.delete(key);
+    return facts;
   },
+
+  /** End every conversation that has gone quiet. Runs on a timer. */
+  sweep() {
+    const now = Date.now();
+    [...this._sessions.entries()].forEach(([key, s]) => {
+      if (key === this._activeKey) return;         // parked, not finished
+      if (now - s.lastHeard < this.SESSION_IDLE_MS) return;
+      const facts = this._close(key, true);
+      if (facts && facts.length) this.onPropose && this.onPropose(facts);
+    });
+    if (!this._sessions.size && this._sweeper) {
+      clearInterval(this._sweeper); this._sweeper = null;
+    }
+  },
+
+  /** Destroy everything currently held, across every conversation. */
+  wipeAll() {
+    this._sessions.forEach(s => { s.buf.length = 0; });
+    this._sessions.clear();
+    this._activeKey = null;
+    this.listening = false;
+    if (this._sweeper) { clearInterval(this._sweeper); this._sweeper = null; }
+    if (this._rec) { try { this._rec.stop(); } catch (_) {} this._rec = null; }
+    this.onState && this.onState(false, null);
+  },
+
+  _wipe() { const s = this._active; if (s) s.buf.length = 0; },
 
   _push(text) {
     const t = (text || '').trim();
     if (!t) return;
-    this._buf.push({ ts: Date.now(), text: t });
+    const s = this._active;
+    if (!s) return;
+    s.buf.push({ ts: Date.now(), text: t });
+    s.lastHeard = Date.now();
     this._prune();
     this._touch();
   },
 
-  /** The buffer is a moving six-minute window. Older speech simply ceases. */
+  /** Every buffer is a moving six-minute window. Older speech simply ceases. */
   _prune() {
     const cutoff = Date.now() - this.BUFFER_MS;
-    while (this._buf.length && this._buf[0].ts < cutoff) this._buf.shift();
-    let chars = this._buf.reduce((n, b) => n + b.text.length, 0);
-    while (chars > this.MAX_CHARS && this._buf.length > 1) {
-      chars -= this._buf.shift().text.length;
-    }
+    this._sessions.forEach(s => {
+      while (s.buf.length && s.buf[0].ts < cutoff) s.buf.shift();
+      let chars = s.buf.reduce((n, b) => n + b.text.length, 0);
+      while (chars > this.MAX_CHARS && s.buf.length > 1) chars -= s.buf.shift().text.length;
+    });
   },
 
-  /** No speech for a while means the conversation is over. */
+  /** A long silence in the ACTIVE conversation ends it. */
   _touch() {
     clearTimeout(this._idleTimer);
-    this._idleTimer = setTimeout(() => this.stop(true), 90000);
+    this._idleTimer = setTimeout(() => {
+      const facts = this.stop(true);
+      if (facts && facts.length) this.onPropose && this.onPropose(facts);
+    }, 120000);
   },
 
   /* ------------------------------------------------------ extraction */
@@ -166,28 +249,47 @@ const Memory = {
    * purpose requires. The purpose here is episodic memory support, and one
    * sentence per visit does not serve it.
    */
-  _propose(personId) {
+  _propose(session) {
+    const people = session.people || [];
+    const personId = people.length === 1 ? people[0] : null;
+    const names = people.map(id => (Store.person(id) || {}).name).filter(Boolean);
     // Pass the FRAGMENTS, not one joined string. Speech recognisers rarely
     // emit punctuation, so joining first produces a single run-on "sentence"
     // that is the entire conversation — which would then be stored verbatim
     // as the "fact". Each isFinal result is a natural utterance boundary.
-    const picked = this._pickSentences(this._buf.map(b => b.text), this.MAX_FACTS);
+    const picked = this._pickSentences(session.buf.map(b => b.text), this.MAX_FACTS);
+    // Topics feed the person's vault whether or not any fact survives — what
+    // they talk about is worth knowing even when nothing quotable was said.
+    if (typeof Vault !== 'undefined') {
+      Vault.learnTopics(people, this._topics(session.buf.map(b => b.text)));
+    }
     if (!picked.length) return null;
 
-    const person = personId ? Store.person(personId) : null;
     const made = [];
     picked.forEach(sentence => {
       const text = this._tidy(sentence);
       if (this._alreadyKnown(text)) return;      // she tells him every week
       made.push(Store.proposeFact({
         text,
-        who: person ? person.name : '',
+        who: names.join(' and '),
         personId: personId || null,
+        people,
       }));
     });
     if (!made.length) return null;
     this.onPropose && this.onPropose(made);
     return made;
+  },
+
+  /** Every recurring content word, not just the single top one. */
+  _topics(lines) {
+    const counts = new Map();
+    lines.forEach(l => this._contentWords(l).forEach(w => counts.set(w, (counts.get(w) || 0) + 1)));
+    return [...counts.entries()]
+      .filter(([, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([word, n]) => ({ word, n }));
   },
 
   /**
@@ -336,14 +438,30 @@ const Memory = {
   /** The gist of the current conversation: topic, plus his last thought. */
   thread() {
     this._prune();
-    if (!this._buf.length) return null;
-    const recent = this._buf.slice(-8).map(b => b.text);
+    const s = this._active;
+    if (!s || !s.buf.length) return null;
+    const recent = s.buf.slice(-8).map(b => b.text);
+    const names = s.people.map(id => (Store.person(id) || {}).name).filter(Boolean);
     return {
       topic: this._topic(recent),
       lastSaid: this._lastSubstantive(recent),
-      person: this.activePersonId ? (Store.person(this.activePersonId) || {}).name : null,
-      fragments: this._buf.length,
+      person: names.join(' and ') || null,
+      fragments: s.buf.length,
+      people: s.people.slice(),
     };
+  },
+
+  /** Every conversation currently open, for the UI. */
+  openSessions() {
+    this._prune();
+    return [...this._sessions.entries()].map(([key, s]) => ({
+      key,
+      active: key === this._activeKey,
+      names: s.people.map(id => (Store.person(id) || {}).name).filter(Boolean),
+      fragments: s.buf.length,
+      quietMs: Date.now() - s.lastHeard,
+      startedMs: Date.now() - s.started,
+    }));
   },
 
   /**
@@ -415,12 +533,16 @@ const Memory = {
   /** For the UI: how much is being held right now, and for how long. */
   bufferState() {
     this._prune();
+    const s = this._active;
+    const buf = s ? s.buf : [];
+    const names = s ? s.people.map(id => (Store.person(id) || {}).name).filter(Boolean) : [];
     return {
-      fragments: this._buf.length,
-      chars: this._buf.reduce((n, b) => n + b.text.length, 0),
-      oldestMs: this._buf.length ? Date.now() - this._buf[0].ts : 0,
+      fragments: buf.length,
+      chars: buf.reduce((n, b) => n + b.text.length, 0),
+      oldestMs: buf.length ? Date.now() - buf[0].ts : 0,
       listening: this.listening,
-      person: this.activePersonId ? (Store.person(this.activePersonId) || {}).name : null,
+      person: names.join(' and ') || null,
+      openConversations: this._sessions.size,
     };
   },
 };

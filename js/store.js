@@ -364,8 +364,9 @@ const Store = {
   /* ---------------------------------------------------- episodic facts
      A fact only exists because a human confirmed it. Nothing that was
      merely heard is ever stored — see js/memory.js. */
-  proposeFact({ text, who, personId }) {
+  proposeFact({ text, who, personId, people }) {
     const f = { id: this._id('f'), text, who: who || '', personId: personId || null,
+                people: people || (personId ? [personId] : []),
                 ts: Date.now(), source: 'conversation', status: 'proposed',
                 cue: newCue(), trials: [] };
     this.s.facts.push(f);
@@ -380,6 +381,8 @@ const Store = {
     f.status = 'kept';
     this.log(EV.FACT_KEPT, { detail: f.text });
     this.audit('fact.confirm', f.text);
+    // A confirmed fact is also something now known about whoever was there.
+    if (typeof Vault !== 'undefined') Vault.noteFromFact(f);
   },
   dropFact(id) {
     const f = this.s.facts.find(x => x.id === id);

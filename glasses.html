@@ -219,6 +219,8 @@
 <script src="js/memory.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/tags.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/behaviour.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 /* ============================================================================
@@ -442,9 +444,11 @@ async function loop() {
         const known = matches.filter(m => m.personId);
         if (known.length) {
           const p = Store.person(known[0].personId);
-          // Conversation memory is gated on an ENROLLED, consented person being
+          // Conversation memory is gated on ENROLLED, consented people being
           // present. A stranger in the room means the microphone stays off.
-          if (p) Memory.start(p.id);
+          // Everyone visible is passed, so two people in the room is one
+          // shared conversation rather than two competing ones.
+          Memory.start(known.map(m => m.personId));
           if (p && Cues.due(p)) await Cues.trial(p);
         } else if (matches.length && !Cues._busy) {
           await Cues.unknown();
@@ -629,11 +633,14 @@ Memory.onPropose = facts => {
   list.forEach(f => logLine(`   · "${f.text}"`, ''));
   render();
 };
-Memory.onState = (on, personId) => {
-  const p = personId ? Store.person(personId) : null;
+Memory.onState = (on, who) => {
+  const ids = Array.isArray(who) ? who : (who ? [who] : []);
+  const names = ids.map(id => (Store.person(id) || {}).name).filter(Boolean);
   $('memPill').textContent = on ? 'listening' : 'off';
   $('memPill').className = 'right pill ' + (on ? 'r' : '');
-  if (on) logLine(`CONVERSATION — listening while ${p ? p.name : 'someone'} is here. Nothing is written to disk.`, 'hi');
+  if (on) {
+    logLine(`CONVERSATION — listening while ${names.join(' and ') || 'someone'} is here. Nothing is written to disk.`, 'hi');
+  }
   render();
 };
 

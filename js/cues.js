@@ -54,7 +54,14 @@ const Cues = {
     return (first.length > 4 ? first.slice(0, 3) : first) + '…';
   },
 
+  /**
+   * What he hears when this person walks in.
+   * Comes from the person's vault, which rotates through everything known
+   * about them — so the ninetieth greeting is not the first one again. Falls
+   * back to the original single memory string for records with no vault.
+   */
   fullPrompt(p) {
+    if (typeof Vault !== 'undefined' && p && p.id) return Vault.greeting(p);
     const bits = [p.name];
     if (p.relation) bits.push(p.relation);
     let s = bits.join('. ') + '.';

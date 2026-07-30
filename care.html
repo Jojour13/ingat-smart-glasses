@@ -50,7 +50,56 @@
     </div>
   </div>
 
-  <div id="alerts" style="margin-bottom:16px"></div>
+  <div id="alerts" role="region" aria-label="Alerts needing your attention"
+       aria-live="polite" style="margin-bottom:16px"></div>
+
+  <!-- ===================================================== evening recap -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="hd"><h2>How today went</h2>
+      <span class="right telemetry" id="summaryModel">&mdash;</span></div>
+    <div class="bd">
+      <div class="voice" id="summaryText" style="font-style:normal">
+        <span class="say-mark">this evening</span>
+        <span id="summaryBody">Writing&hellip;</span>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn sm" id="btnRewrite">Write it again</button>
+        <button class="btn sm" id="btnSpeakSummary">Read it aloud</button>
+        <span class="tiny" id="summaryNote"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ behaviour, not cognition -->
+  <div class="grid g-2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="hd"><h2>When in the day he struggles</h2>
+        <span class="right telemetry">last 7 days</span></div>
+      <div class="bd">
+        <div id="clockChart"></div>
+        <div id="sundownNote" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h2>How much he is still talking to people</h2>
+        <span class="right pill" id="socialPill">&mdash;</span></div>
+      <div class="bd">
+        <div class="kpis" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:12px">
+          <div class="kpi"><b id="sVisits">0</b><span>conversations</span></div>
+          <div class="kpi"><b id="sPeople">0</b><span>different people</span></div>
+          <div class="kpi"><b id="sMinutes">0</b><span>minutes talking</span></div>
+        </div>
+        <div id="withdrawalNote"></div>
+        <p class="tiny" style="margin:10px 0 0">
+          Pulling back from conversation is one of the earliest changes in dementia,
+          and it tends to feed on itself &mdash; he stops talking because losing the
+          thread in front of people is humiliating, and talking less makes it worse.
+          Compared against <b>his own</b> previous four weeks, never against anyone else.
+        </p>
+      </div>
+    </div>
+  </div>
 
   <div class="grid g-care">
     <!-- =================================================== main column -->
@@ -198,6 +247,9 @@
 <script src="js/maas.js"></script>
 <script src="js/recall.js"></script>
 <script src="js/geo.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/behaviour.js"></script>
+<script src="js/summary.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 Store.load();
@@ -588,8 +640,70 @@ function render() {
       </div></div>` : '';
 }
 
+/* ---------------------------------------------------- evening recap */
+let summaryBusy = false, lastSummary = '';
+
+async function writeSummary() {
+  if (summaryBusy) return;
+  summaryBusy = true;
+  $('summaryBody').textContent = 'Writing…';
+  $('summaryNote').textContent = '';
+  try {
+    const r = await Summary.write();
+    lastSummary = r.text;
+    $('summaryBody').textContent = r.text;
+    $('summaryModel').textContent = r.model;
+    $('summaryNote').innerHTML = r.route === 'ollama'
+      ? '<span style="color:var(--green)">Written by an open-weight model running on this machine. Nothing left the flat.</span>'
+      : r.route === 'maas'
+        ? 'Written in Huawei Cloud’s Singapore region. Counts and confirmed facts only — never a transcript.'
+        : 'Written locally, without a model. Start Ollama to have one write it instead.';
+  } catch (e) {
+    $('summaryBody').textContent = Summary.template(Summary.gather());
+    $('summaryNote').textContent = 'Model unavailable — written locally.';
+  }
+  summaryBusy = false;
+}
+$('btnRewrite').onclick = () => { Summary._ollamaOk = null; writeSummary(); };
+$('btnSpeakSummary').onclick = () => { if (lastSummary) Speech.say(lastSummary, { tag: 'summary' }); };
+
+/* ------------------------------------------- behaviour, not cognition */
+function renderBehaviour() {
+  $('clockChart').innerHTML = Behaviour.clockChart(7);
+  const sun = Behaviour.sundowning(7);
+  $('sundownNote').innerHTML = sun.flagged
+    ? `<div class="note w">${sun.text}</div>`
+    : sun.clock.total < 8
+      ? `<div class="note"><b>Not enough yet.</b> A few more days and the pattern of his day will show here.</div>`
+      : `<div class="note g"><b>No particular time of day stands out.</b> His difficult moments are spread fairly evenly.</div>`;
+
+  const soc = Behaviour.social(7);
+  $('sVisits').textContent = soc.visits;
+  $('sPeople').textContent = soc.distinctPeople;
+  $('sMinutes').textContent = soc.minutes;
+
+  const w = Behaviour.withdrawal();
+  if (!w.known) {
+    $('socialPill').textContent = 'building a baseline';
+    $('socialPill').className = 'right pill';
+    $('withdrawalNote').innerHTML = `<div class="note"><b>Still learning what is normal for him.</b> After a few weeks this will compare each week against his own usual.</div>`;
+  } else if (w.flagged) {
+    $('socialPill').textContent = `down ${Math.round(w.drop * 100)}%`;
+    $('socialPill').className = 'right pill r';
+    $('withdrawalNote').innerHTML = `<div class="note r">${w.text}</div>`;
+  } else {
+    $('socialPill').textContent = 'as usual';
+    $('socialPill').className = 'right pill g';
+    $('withdrawalNote').innerHTML = `<div class="note g">${w.text}</div>`;
+  }
+}
+
+const _render = render;
+render = function () { _render(); renderBehaviour(); };
+
 Store.onChange(render);
 render();
+writeSummary();
 setInterval(() => { $('kWear').textContent = Fmt.dur(Store.wearMsToday()); }, 15000);
 </script>
 <div id="live" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
