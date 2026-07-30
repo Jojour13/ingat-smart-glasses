@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# OneDrive / Windows / macOS cruft
+desktop.ini
+Thumbs.db
+.DS_Store
+*~
+
+# Editors
+.vscode/
+.idea/
+
+# Never commit credentials. js/maas.js ships unkeyed on purpose.
+.env
+*.key
+secrets.json

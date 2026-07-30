@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>INGAT — Privacy &amp; Trust Centre</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23181614'/><circle cx='11' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><circle cx='23' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><path d='M16.4 16h-.8' stroke='%23b4472c' stroke-width='2.4'/></svg>">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="topbar noprint">
+  <div class="brand">ING<em>A</em>T</div>
+  <div class="tag">Privacy &amp; Trust Centre</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="family.html">Setup</a>
+    <a href="glasses.html">Glasses</a>
+    <a href="care.html">Caregiver</a>
+    <a href="privacy.html" class="on">Privacy</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <div style="max-width:700px;margin-bottom:22px">
+    <h1>A camera on your father's face is a serious thing.</h1>
+    <p class="lede">
+      So this page is not a policy. It is the working control panel: what we hold
+      right now, what he agreed to, what the law requires of us, and the two
+      buttons that destroy it.
+    </p>
+  </div>
+
+  <!-- ================================================== what we hold -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="hd"><h2>What we hold about him, right now</h2>
+      <span class="right telemetry">live, not a promise</span></div>
+    <div class="bd tight">
+      <div class="kpis" id="holdings"></div>
+    </div>
+  </div>
+
+  <div class="grid g-care">
+    <div>
+      <!-- ============================================== consent flow -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Consent &mdash; with him, not about him</h2>
+          <span class="right pill" id="consentPill">not recorded</span></div>
+        <div class="bd">
+
+          <div class="legal" style="margin-bottom:16px">
+            Singapore's <b>Mental Capacity Act 2008</b> starts from a presumption:
+            a person is assumed to have capacity unless it is shown otherwise. It also
+            says you must not treat someone as lacking capacity <b>&ldquo;without first
+            doing what can practicably be done to support them in making the
+            decision&rdquo;</b> &mdash; and that an unwise decision is not evidence of
+            incapacity. At mild stage he very often still has capacity. So we ask him.
+          </div>
+
+          <div class="consent-step" id="cs1">
+            <div class="num">1</div>
+            <div class="bd2">
+              <h4>Explain it to him, in his own language</h4>
+              <p class="sub" style="margin-bottom:8px">
+                Read aloud through the glasses, in the language he thinks in, slowed to
+                his speech profile. This is the &ldquo;practicable support&rdquo; the Act
+                asks for &mdash; it is the difference between consent and paperwork.
+              </p>
+              <div class="voice sm" id="consentScript"></div>
+              <div class="row" style="margin-top:10px">
+                <select id="cLang" style="max-width:190px">
+                  <option value="en-SG">English</option>
+                  <option value="zh-CN">中文 Mandarin</option>
+                  <option value="zh-HK">粵語 Cantonese</option>
+                  <option value="ms-MY">Bahasa Melayu</option>
+                  <option value="ta-IN">தமிழ் Tamil</option>
+                </select>
+                <button class="btn p" id="cSpeak">Read it to him</button>
+                <span class="telemetry" id="cSpoke"></span>
+              </div>
+              <p class="tiny" style="margin:8px 0 0">
+                Ask at a good time of day. Not late afternoon, not when he is tired.
+              </p>
+            </div>
+          </div>
+
+          <div class="consent-step" id="cs2">
+            <div class="num">2</div>
+            <div class="bd2">
+              <h4>What he agreed to</h4>
+              <p class="sub" style="margin-bottom:8px">
+                Granular, because the PDPA's <b>Purpose Limitation</b> obligation means
+                consent for one purpose is not consent for another. He can say yes to
+                being helped and no to being measured.
+              </p>
+              <div class="stack" id="purposes"></div>
+            </div>
+          </div>
+
+          <div class="consent-step" id="cs3">
+            <div class="num">3</div>
+            <div class="bd2">
+              <h4>His decision</h4>
+              <div class="row" style="margin-top:6px">
+                <input type="text" id="cDonor" placeholder="His name" style="max-width:200px">
+                <button class="btn g" id="cYes">He agreed</button>
+                <button class="btn" id="cNo">He declined</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="consent-step" id="cs4">
+            <div class="num">4</div>
+            <div class="bd2">
+              <h4>Co-signed by the donee</h4>
+              <p class="sub" style="margin-bottom:8px">
+                Under an LPA the donor grants authority over <b>personal welfare</b>,
+                <b>property &amp; affairs</b>, or both. A property donee cannot make
+                healthcare decisions unless also authorised for personal welfare
+                &mdash; so we record which scope you actually hold.
+              </p>
+              <div class="row">
+                <input type="text" id="cDonee" placeholder="Your name" style="max-width:170px">
+                <input type="text" id="cRel" placeholder="Daughter" style="max-width:120px">
+                <select id="cScope" style="max-width:200px">
+                  <option value="personal-welfare">LPA — personal welfare</option>
+                  <option value="both">LPA — welfare + property</option>
+                  <option value="none">No LPA yet</option>
+                </select>
+                <button class="btn k" id="cSign">Co-sign</button>
+              </div>
+              <p class="tiny" style="margin:8px 0 0">
+                No LPA? He can still make one while he has capacity, and it is far
+                easier now than later. <b>DementiaHub.SG</b> and the Office of the
+                Public Guardian explain how.
+              </p>
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="row">
+            <div style="flex:1">
+              <div class="telemetry">ongoing assent</div>
+              <div style="font-size:13px;margin-top:2px" id="assentLine"></div>
+            </div>
+            <button class="btn" id="aPause">Pause</button>
+            <button class="btn" id="aResume">Resume</button>
+          </div>
+          <div class="note g" style="margin-top:12px">
+            <b>Taking the glasses off is a withdrawal, not a fault.</b> If wear time
+            falls away, the system tells you and stops &mdash; it never nags him back
+            into it. Consent that cannot be withdrawn in practice was never consent.
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================== PDPA obligations -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>The eleven PDPA obligations, and what we do about each</h2></div>
+        <div class="bd tight">
+          <div style="padding:0 15px" id="obligations"></div>
+        </div>
+      </div>
+
+      <!-- ============================================== HSA -->
+      <div class="card">
+        <div class="hd"><h2>Where the medical-device line sits</h2></div>
+        <div class="bd tight">
+          <table>
+            <tr><th style="width:8%">Phase</th><th style="width:38%">What it does</th><th>Regulatory position</th></tr>
+            <tr><td class="mono">1</td><td>Prompts, reminders, caregiver dashboard</td>
+              <td>Wellness and assistive technology. <b>Not HSA-regulated.</b> We make no diagnostic claim, and the product says nothing about dementia to the wearer.</td></tr>
+            <tr><td class="mono">2</td><td>Clinical pilot with a public healthcare partner</td>
+              <td>Evidence generation. Note the <b>Health Products (AI Standalone Mobile Application &mdash; Exemption) Order 2026</b>, in force 13 February 2026, which eases licensing for AI-SaMD developed by public healthcare entities &mdash; a reason to partner rather than go alone.</td></tr>
+            <tr><td class="mono">3</td><td>Cognitive Trajectory Index used to triage or trigger clinical action</td>
+              <td>Clinical decision support. <b>Likely HSA Class B software as a medical device.</b> Registered before that feature ships, not after.</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================== side -->
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>His rights, as buttons</h2></div>
+        <div class="bd">
+          <p class="sub" style="margin-top:0">
+            The PDPA gives a right of <b>access</b> and <b>correction</b>, and from
+            2022 a right to <b>data portability</b>. Rights that require an email and
+            a 30-day wait are rights on paper.
+          </p>
+          <div class="stack">
+            <button class="btn wide" id="bExport">Download everything we hold</button>
+            <button class="btn wide" id="bErase">Destroy face data &amp; photos</button>
+            <button class="btn wide" id="bNuke" style="border-color:var(--red);color:var(--red)">Erase everything</button>
+          </div>
+          <div class="hr"></div>
+          <div class="telemetry" id="retention"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Five decisions, not five promises</h2></div>
+        <div class="bd tight">
+          <div style="padding:0 15px" id="architecture"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>If something goes wrong</h2></div>
+        <div class="bd">
+          <div class="legal">
+            A breach is notifiable if it is likely to cause <b>significant harm</b> to
+            an affected individual, <b>or</b> affects <b>500 or more</b> individuals.
+            We must tell the PDPC <b>within 72 hours of determining it is
+            notifiable</b> &mdash; the clock runs from that determination, not from
+            discovery &mdash; and tell affected individuals where significant harm is
+            likely.
+          </div>
+          <div class="hr"></div>
+          <p class="sub" style="margin-bottom:6px"><b>Why our blast radius is small.</b></p>
+          <p class="tiny" style="margin:0">
+            There is no video. There are no images of anyone who did not consent. A
+            stolen descriptor is 128 floating-point numbers that cannot be turned back
+            into a face. The worst realistic breach exposes a list of about twenty
+            names one family chose to enrol &mdash; which is bad, and is
+            <i>architecturally</i> as small as we could make it.
+          </p>
+          <div class="hr"></div>
+          <div class="telemetry">
+            <b>Data Protection Officer</b><br>
+            <span id="dpoLine">not appointed</span>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input type="text" id="dpoName" placeholder="DPO name" style="max-width:130px">
+            <input type="text" id="dpoEmail" placeholder="dpo@…" style="max-width:150px">
+            <button class="btn sm" id="dpoSave">Set</button>
+          </div>
+          <p class="tiny" style="margin:8px 0 0">
+            Every organisation in Singapore must designate at least one DPO and make
+            the contact details available. It can be an existing employee.
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><h2>Audit trail</h2>
+          <span class="right telemetry" id="auditCount"></span></div>
+        <div class="bd tight"><div class="log" id="audit" style="max-height:300px"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/cues.js"></script>
+<script src="js/cti.js"></script>
+<script>
+Store.load(); Store.listen(); Speech.init();
+const $ = id => document.getElementById(id);
+const esc = s => (s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* The script he actually hears. Plain words, short sentences, no jargon, and
+   it names the thing he would care about: who can see it, and how to stop it. */
+const SCRIPT = {
+  'en-SG': 'These glasses can tell you who someone is when they come to see you. To do that, they need to remember the faces of people in your family. Only the people we choose together. Never strangers. Nothing is recorded, and no pictures are kept. Mei Ling will be able to see whether you are wearing them and whether you took your medicine. If you want it to stop, take the glasses off, and it stops. Is that alright with you?',
+  'zh-CN': '这副眼镜可以在有人来看你的时候，告诉你他是谁。为此，它需要记住家人的样子。只有我们一起选定的人，绝不会是陌生人。它不会录像，也不会保存照片。美玲可以看到你有没有戴上眼镜，有没有吃药。如果你不想要了，把眼镜摘下来，它就会停止。这样可以吗？',
+  'zh-HK': '呢副眼鏡可以喺有人嚟探你嘅時候，話畀你聽佢係邊個。所以佢要記住屋企人嘅樣。淨係我哋一齊揀嘅人，唔會係陌生人。佢唔會錄影，亦都唔會留低相。美玲可以睇到你有冇戴住，有冇食藥。如果你唔想要，除低副眼鏡就會停。咁樣得唔得？',
+  'ms-MY': 'Cermin mata ini boleh beritahu anda siapa yang datang melawat. Untuk itu, ia perlu mengingati wajah ahli keluarga. Hanya orang yang kita pilih bersama. Bukan orang asing. Tiada rakaman, tiada gambar disimpan. Mei Ling boleh lihat sama ada anda memakainya dan sama ada anda sudah makan ubat. Jika anda mahu berhenti, tanggalkan cermin mata ini, dan ia berhenti. Boleh?',
+  'ta-IN': 'யாராவது உங்களைப் பார்க்க வரும்போது, அவர் யார் என்று இந்தக் கண்ணாடி சொல்லும். அதற்கு, குடும்பத்தினரின் முகங்களை நினைவில் வைக்க வேண்டும். நாம் சேர்ந்து தேர்ந்தெடுத்தவர்கள் மட்டுமே. அந்நியர்கள் இல்லை. பதிவு இல்லை, படங்கள் இல்லை. நீங்கள் அணிந்திருக்கிறீர்களா, மருந்து சாப்பிட்டீர்களா என்று மெய் லிங் பார்க்க முடியும். நிறுத்த வேண்டுமானால், கண்ணாடியைக் கழற்றுங்கள். சரியா?',
+};
+
+const PURPOSES = [
+  ['recognition', 'Recognise family faces and tell him who they are', 'The core help. Enrolled people only.'],
+  ['reminders',   'Remind him about medication, appointments and routine', 'No camera needed for this one.'],
+  ['trajectory',  'Measure how much help he needed, and share the trend with his doctor', 'This is the one to think about. It is genuinely useful and it is genuinely about him.'],
+  ['research',    'Contribute de-identified data to the clinical pilot', 'Entirely optional. Declining changes nothing about how the glasses work.'],
+];
+
+const OBLIGATIONS = [
+  ['Consent', 'ok', 'Recorded here, with him, in his language, purpose by purpose. Withdrawable by taking the glasses off.'],
+  ['Purpose Limitation', 'ok', 'Each purpose is a separate switch. Face data is used to recognise enrolled people and nothing else.'],
+  ['Notification', 'ok', 'He is told what the glasses do before enrolment, and told aloud whenever the camera state changes.'],
+  ['Access', 'ok', '“Download everything we hold” returns the full record, including the audit trail, as a readable file.'],
+  ['Correction', 'ok', 'Every name, relationship and memory is editable in the Setup Studio, by any member of the care circle.'],
+  ['Accuracy', 'ok', 'We never guess a name. Below the match threshold the glasses say “someone is here”. A wrong name is worse than none.'],
+  ['Protection', 'ok', 'Inference is on-device. No frame is written to storage. The only persisted vector is one descriptor per consented person.'],
+  ['Retention Limitation', 'ok', 'A retention clock runs from the consent date. At expiry the record must be re-consented or destroyed.'],
+  ['Transfer Limitation', 'part', 'Language generation runs in Huawei Cloud’s Singapore region. In this prototype it runs locally, so nothing leaves the machine at all.'],
+  ['Data Breach Notification', 'part', 'Policy defined: PDPC within 72 hours of determining a breach is notifiable; individuals notified where significant harm is likely. Needs a named responder before launch.'],
+  ['Accountability', 'part', 'The audit trail below is append-only. A DPO must be designated before this ships.'],
+];
+
+const ARCHITECTURE = [
+  ['Enrolment only', 'We match against roughly twenty faces the family added with consent. A non-enrolled face has its descriptor discarded with the frame. Strangers are never identified.'],
+  ['Ephemeral', 'No frame, image or video is ever written to storage. Frame, embedding, match, discard.'],
+  ['Event-triggered', 'Capture fires when a face enters view and he pauses or asks. Not continuous. These are not recording glasses.'],
+  ['The switch speaks', 'Flip the camera cutoff and he is told what changed, and it is logged to you. A silent failure would read to him as “I have got worse”.'],
+  ['Local inference', 'Model weights sit on the device. This prototype makes no network request at run time — which you can verify by unplugging the wifi.'],
+];
+
+/* ------------------------------------------------------------------ init */
+function renderScript() {
+  const lang = $('cLang').value;
+  $('consentScript').innerHTML = `<span class="say-mark">read aloud, ${lang}</span>${esc(SCRIPT[lang] || SCRIPT['en-SG'])}`;
+}
+$('cLang').onchange = renderScript;
+
+$('cSpeak').onclick = async () => {
+  const lang = $('cLang').value;
+  const v = Speech.pick(lang);
+  if (!v || !v.lang.toLowerCase().startsWith(lang.split('-')[0])) {
+    $('cSpoke').textContent = `no ${lang} voice installed — it will speak in the wrong language`;
+  } else {
+    $('cSpoke').textContent = `spoken in ${v.name}`;
+  }
+  Store.audit('consent.explained', `read aloud in ${lang}`);
+  await Speech.say(SCRIPT[lang] || SCRIPT['en-SG'], { lang, tag: 'consent' });
+};
+
+$('cYes').onclick = () => recordDonor(true);
+$('cNo').onclick  = () => recordDonor(false);
+
+function recordDonor(agreed) {
+  const c = Store.s.consent;
+  const name = $('cDonor').value.trim() || Store.s.patient.name;
+  if (!agreed) {
+    c.assent.status = 'declined';
+    c.donor = { name, signedTs: null, method: 'supported', language: $('cLang').value };
+    Store.log(EV.CONSENT, { detail: 'declined' });
+    Store.audit('consent.declined', `${name} declined after supported explanation`);
+    Store.save(); render();
+    alert('Recorded as declined. Face recognition stays off. Reminders can still be used if he agrees to that purpose separately.');
+    return;
+  }
+  c.donor = { name, signedTs: Date.now(), method: 'supported', language: $('cLang').value };
+  c.assent = { status: 'active', lastAffirmedTs: Date.now() };
+  c.reviewDueTs = Date.now() + 365 * 86400000;
+  Store.log(EV.CONSENT, { detail: 'agreed' });
+  Store.audit('consent.donor', `${name} agreed, explained in ${c.donor.language} under supported decision-making`);
+  Store.save(); render();
+}
+
+$('cSign').onclick = () => {
+  const c = Store.s.consent;
+  c.donee = { name: $('cDonee').value.trim(), relationship: $('cRel').value.trim(),
+              lpaScope: $('cScope').value, signedTs: Date.now() };
+  Store.audit('consent.donee', `${c.donee.name} (${c.donee.relationship}) co-signed, scope: ${c.donee.lpaScope}`);
+  Store.save(); render();
+};
+
+$('aPause').onclick = () => setAssent('paused');
+$('aResume').onclick = () => setAssent('active');
+function setAssent(st) {
+  Store.s.consent.assent.status = st;
+  Store.s.consent.assent.lastAffirmedTs = Date.now();
+  Store.log(EV.ASSENT, { detail: st });
+  Store.audit('assent.' + st, 'changed by the care circle');
+  Store.save(); render();
+}
+
+$('dpoSave').onclick = () => {
+  Store.s.consent.dpo = { name: $('dpoName').value.trim(), email: $('dpoEmail').value.trim() };
+  Store.audit('dpo.designate', Store.s.consent.dpo.name + ' / ' + Store.s.consent.dpo.email);
+  Store.save(); render();
+};
+
+/* ------------------------------------------------------------- rights */
+$('bExport').onclick = () => {
+  const data = Store.exportAll();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ingat-data-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  render();
+};
+
+$('bErase').onclick = () => {
+  if (!confirm('Destroy every face descriptor, photo and voice recording?\n\nNames, relationships and memories are kept, so reminders keep working — but the glasses will no longer recognise anyone.')) return;
+  Store.eraseBiometrics(); render();
+};
+
+$('bNuke').onclick = () => {
+  if (!confirm('Erase everything: people, memories, calendar, events, history.\n\nThe audit trail of this erasure is kept, because the law expects us to be able to show what we did.')) return;
+  if (!confirm('This cannot be undone. Really erase?')) return;
+  Store.eraseEverything(); render();
+};
+
+/* ------------------------------------------------------------- render */
+function render() {
+  const s = Store.s, c = s.consent;
+
+  /* holdings — counted, not claimed */
+  const desc = s.people.filter(p => p.descriptor && p.descriptor.length === 128).length;
+  const photos = s.people.filter(p => p.photo).length;
+  $('holdings').innerHTML = `
+    <div class="kpi"><b class="a">${desc}</b><span>face descriptors</span></div>
+    <div class="kpi"><b>${photos}</b><span>photos</span></div>
+    <div class="kpi"><b>0</b><span>video frames stored</span></div>
+    <div class="kpi"><b>0</b><span>strangers identified</span></div>`;
+
+  /* consent status */
+  const signed = !!c.donor.signedTs;
+  $('consentPill').textContent = signed ? 'recorded ' + new Date(c.donor.signedTs).toLocaleDateString('en-GB')
+    : (c.assent.status === 'declined' ? 'declined' : 'not recorded');
+  $('consentPill').className = 'right pill ' + (signed ? 'g' : c.assent.status === 'declined' ? 'r' : 'w');
+  $('cs3').classList.toggle('done', signed);
+  $('cs4').classList.toggle('done', !!c.donee.signedTs);
+  $('cs1').classList.toggle('done', signed);
+  if (c.donor.name) $('cDonor').value = c.donor.name;
+  if (c.donee.name) { $('cDonee').value = c.donee.name; $('cRel').value = c.donee.relationship || ''; $('cScope').value = c.donee.lpaScope || 'personal-welfare'; }
+
+  const A = { active: ['g','Active — he is wearing them'], paused: ['w','Paused by the family'],
+              declined: ['r','He declined'], pending: ['','Not yet asked'] };
+  const [ac, at] = A[c.assent.status] || A.pending;
+  $('assentLine').innerHTML = `<span class="pill ${ac}">${at}</span>` +
+    (c.assent.lastAffirmedTs ? ` <span class="telemetry">since ${new Date(c.assent.lastAffirmedTs).toLocaleDateString('en-GB')}</span>` : '');
+
+  /* purposes */
+  $('purposes').innerHTML = PURPOSES.map(([k, label, note]) => `
+    <label class="tog" style="align-items:flex-start;gap:9px">
+      <input type="checkbox" data-purpose="${k}" ${c.purposes[k] ? 'checked' : ''}><span class="sw" style="margin-top:1px"></span>
+      <span><span style="font-size:12.5px;color:var(--ink)">${label}</span>
+        <span class="tiny" style="display:block">${note}</span></span>
+    </label>`).join('');
+  $('purposes').querySelectorAll('[data-purpose]').forEach(el => el.onchange = () => {
+    c.purposes[el.dataset.purpose] = el.checked;
+    Store.audit('consent.purpose', `${el.dataset.purpose} = ${el.checked ? 'granted' : 'withdrawn'}`);
+    Store.save(); render();
+  });
+
+  /* obligations */
+  const P = { ok: ['g','MET'], part: ['w','PARTIAL'], no: ['r','GAP'] };
+  $('obligations').innerHTML = OBLIGATIONS.map(([name, st, txt]) => {
+    const [cls, word] = P[st];
+    return `<div class="obligation">
+      <div class="st"><span class="pill ${cls}">${word}</span></div>
+      <div class="tx"><b>${name}</b><span>${txt}</span></div></div>`;
+  }).join('');
+
+  $('architecture').innerHTML = ARCHITECTURE.map(([n, t], i) => `
+    <div class="obligation"><div class="st"><span class="telemetry"><b>0${i+1}</b></span></div>
+      <div class="tx"><b>${n}</b><span>${t}</span></div></div>`).join('');
+
+  /* retention */
+  const left = Store.retentionDaysLeft();
+  $('retention').innerHTML = signed
+    ? `<b>Retention</b><br>${left} days until the record must be re-consented or destroyed.<br>
+       Review due ${new Date(c.reviewDueTs).toLocaleDateString('en-GB')}.`
+    : `<b>Retention</b><br>Clock starts when consent is recorded.`;
+
+  $('dpoLine').textContent = c.dpo.name ? `${c.dpo.name} — ${c.dpo.email}` : 'not appointed';
+  if (c.dpo.name) { $('dpoName').value = c.dpo.name; $('dpoEmail').value = c.dpo.email; }
+
+  /* audit */
+  const a = s.audit.slice().reverse();
+  $('auditCount').textContent = `${s.audit.length} entries`;
+  $('audit').innerHTML = a.length ? a.map(x => `
+    <div class="e"><span class="t">${Fmt.hm(x.ts)}</span>
+      <span class="m"><b>${esc(x.action)}</b> ${esc(x.detail || '')}</span></div>`).join('')
+    : `<div class="e"><span class="m" style="color:var(--faint)">Nothing recorded yet.</span></div>`;
+
+  renderScript();
+}
+
+Store.onChange(render);
+render();
+</script>
+</body>
+</html>

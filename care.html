@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>INGAT — Caregiver dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23181614'/><circle cx='11' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><circle cx='23' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><path d='M16.4 16h-.8' stroke='%23b4472c' stroke-width='2.4'/></svg>">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="topbar noprint">
+  <div class="brand">ING<em>A</em>T</div>
+  <div class="tag">Caregiver dashboard</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="family.html">Setup</a>
+    <a href="glasses.html">Glasses</a>
+    <a href="care.html" class="on">Caregiver</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <div class="row" style="margin-bottom:16px">
+    <div>
+      <h1 id="ptName">Tan Ah Kow</h1>
+      <p class="sub" style="margin:0" id="ptMeta"></p>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn noprint" id="btnPrint">Export clinician report</button>
+  </div>
+
+  <!-- ===================================================== care signal -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="hd"><h2>Care Signal &mdash; today</h2>
+      <span class="right tiny">Silent by default. One message, one action.</span>
+    </div>
+    <div class="bd tight">
+      <div class="kpis">
+        <div class="kpi"><b id="kWear">0m</b><span>wear time</span></div>
+        <div class="kpi"><b id="kServed">0</b><span>prompts served</span></div>
+        <div class="kpi"><b class="a" id="kNeeded">0</b><span>prompts needed</span></div>
+        <div class="kpi"><b id="kMeds">0/2</b><span>doses confirmed</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="alerts" style="margin-bottom:16px"></div>
+
+  <div class="grid g-care">
+    <!-- =================================================== main column -->
+    <div>
+
+      <!-- CTI -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd">
+          <h2>Cognitive Trajectory Index</h2>
+          <span class="right pill k" id="ctiBadge">&ndash;&ndash;</span>
+        </div>
+        <div class="bd">
+          <div id="chart"></div>
+          <div class="row tiny" style="margin-top:6px;gap:16px">
+            <span><b style="color:#2f5d50">&#9679;</b> seeded history (weeks 1&ndash;10)</span>
+            <span><b style="color:#b4472c">&#9679;</b> live &mdash; computed from this session only</span>
+          </div>
+          <div id="ctiFlag" style="margin-top:12px"></div>
+
+          <h3 style="margin-top:18px">Sub-scores driving the index</h3>
+          <div id="subs"></div>
+          <p class="tiny" style="margin-top:10px">
+            Weights are a considered first pass, not a validated instrument. In the
+            Phase 2 pilot they would be fitted against MMSE/MoCA and clinician staging.
+            This is a triage signal, not a diagnosis.
+          </p>
+        </div>
+      </div>
+
+      <!-- who is he forgetting -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Who is he forgetting?</h2>
+          <span class="right tiny">Sorted by prompts needed</span>
+        </div>
+        <div class="bd tight"><div id="forget"></div></div>
+      </div>
+
+      <!-- memory library -->
+      <div class="card">
+        <div class="hd"><h2>Memory library</h2>
+          <span class="right pill" id="libCount">0 people</span>
+        </div>
+        <div class="bd tight"><div id="lib"></div></div>
+      </div>
+    </div>
+
+    <!-- =================================================== side column -->
+    <div>
+      <!-- enrol -->
+      <div class="card noprint" style="margin-bottom:16px">
+        <div class="hd"><h2>Add someone</h2></div>
+        <div class="bd">
+          <p class="tiny" style="margin-top:0">
+            Name, relationship, and <b>one thing you did together</b>. The memory is
+            what makes the greeting real, and it doubles as reminiscence content.
+          </p>
+          <label class="fld"><span>Name</span>
+            <input type="text" id="fName" placeholder="Mei Ling"></label>
+          <label class="fld"><span>Relationship</span>
+            <input type="text" id="fRel" placeholder="Your daughter"></label>
+          <label class="fld"><span>One shared memory</span>
+            <textarea id="fMem" placeholder="She came last Sunday and brought kaya toast"></textarea></label>
+          <label class="fld"><span>Photo of their face</span>
+            <input type="file" id="fPhoto" accept="image/*" style="font-size:12px"></label>
+          <div id="preview" style="margin-bottom:10px"></div>
+          <button class="btn p wide" id="btnAdd">Enrol from photo</button>
+          <p class="tiny" style="margin:8px 0 0">
+            Time this. Ten minutes for a whole family is the market-readiness claim.
+          </p>
+        </div>
+      </div>
+
+      <!-- meds -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Medication</h2></div>
+        <div class="bd tight"><table id="meds"></table></div>
+      </div>
+
+      <!-- consent -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Consent register</h2>
+          <a class="btn sm right noprint" href="privacy.html">Manage</a></div>
+        <div class="bd">
+          <table>
+            <tr><td style="width:52%">His consent</td><td id="cDonorCell"></td></tr>
+            <tr><td>Donee co-signature</td><td id="cDoneeCell"></td></tr>
+            <tr><td>Ongoing assent</td><td><span class="pill" id="assent"></span></td></tr>
+            <tr><td>Camera state</td><td><span class="pill" id="camState">On</span></td></tr>
+            <tr><td>Re-consent due</td><td class="mono tiny" id="cReview">&mdash;</td></tr>
+            <tr><td>Enrolled faces</td><td class="mono" id="cFaces">0</td></tr>
+            <tr><td>Strangers identified</td><td><span class="pill g">Never</span></td></tr>
+            <tr><td>Video retained</td><td><span class="pill g">None</span></td></tr>
+          </table>
+          <p class="tiny" style="margin:10px 0 0">
+            Falling wear time is treated as <b>withdrawal of assent</b>, not
+            non-compliance. The system informs; it never coerces.
+          </p>
+        </div>
+      </div>
+
+      <!-- timeline -->
+      <div class="card">
+        <div class="hd"><h2>Timeline</h2>
+          <span class="right tiny" id="evCount"></span>
+        </div>
+        <div class="bd tight"><div class="log" id="tl" style="max-height:340px"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- micro-lesson, fires on a detected repetition spike -->
+  <div id="lesson" style="margin-top:16px"></div>
+
+</div>
+
+<script src="js/face-api.min.js"></script>
+<script src="js/store.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/cues.js"></script>
+<script src="js/cti.js"></script>
+<script src="js/maas.js"></script>
+<script src="js/schedule.js"></script>
+<script>
+Store.load();
+Store.listen();
+Speech.init();
+const $ = id => document.getElementById(id);
+
+/* --------------------------------------------------------- enrol from photo */
+let pendingPhoto = null, pendingImg = null;
+$('fPhoto').onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    pendingPhoto = r.result;
+    $('preview').innerHTML = `<img src="${r.result}" style="width:100%;max-height:170px;object-fit:cover;border-radius:8px;border:1px solid var(--rule)">`;
+    const img = new Image(); img.src = r.result; pendingImg = img;
+  };
+  r.readAsDataURL(f);
+};
+
+$('btnAdd').onclick = async () => {
+  const name = $('fName').value.trim();
+  if (!name) { alert('Name is required.'); return; }
+  const b = $('btnAdd');
+  b.disabled = true; b.textContent = 'Enrolling…';
+  let descriptor = null;
+  try {
+    if (pendingImg) {
+      await Vision.loadModels();
+      await new Promise(r => { if (pendingImg.complete) r(); else pendingImg.onload = r; });
+      descriptor = await Vision.fromImage(pendingImg);
+      if (!descriptor) alert('No face found in that photo. Added without a face descriptor — recognition will not fire for this person, but they will appear in the library.');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Face model failed to load: ' + err.message);
+  }
+  Store.addPerson({
+    name,
+    relation: $('fRel').value.trim(),
+    memory: $('fMem').value.trim(),
+    photo: pendingPhoto,
+    descriptor,
+  });
+  $('fName').value = $('fRel').value = $('fMem').value = '';
+  $('fPhoto').value = ''; $('preview').innerHTML = '';
+  pendingPhoto = pendingImg = null;
+  b.disabled = false; b.textContent = 'Enrol from photo';
+  render();
+};
+
+$('btnPrint').onclick = () => window.print();
+
+/* ------------------------------------------------------------------ render */
+function subBar(label, v, note) {
+  if (v === null || v === undefined) {
+    return `<div style="margin-bottom:9px"><div class="row tiny" style="justify-content:space-between">
+      <span>${label}</span><span class="mono">no data yet</span></div>
+      <div class="bar"><i style="width:0"></i></div></div>`;
+  }
+  const cls = v >= 70 ? 'g' : v >= 45 ? 'w' : 'r';
+  return `<div style="margin-bottom:9px">
+    <div class="row tiny" style="justify-content:space-between">
+      <span>${label}${note ? ` <span style="color:var(--faint)">${note}</span>` : ''}</span>
+      <span class="mono"><b>${Math.round(v)}</b>/100</span>
+    </div>
+    <div class="bar"><i class="${cls}" style="width:${Math.round(v)}%"></i></div>
+  </div>`;
+}
+
+function render() {
+  const s = Store.s;
+
+  /* header */
+  $('ptName').textContent = s.patient.name;
+  $('ptMeta').textContent = `${s.patient.age} · ${s.patient.stage} stage · ${s.patient.language} · unsupervised window ${s.patient.wakeHours}h`;
+
+  /* care signal */
+  const ev = Store.eventsToday();
+  const served = ev.filter(e => [EV.PROMPT_FULL, EV.PROMPT_CUE, EV.PROMPT_CHIME].includes(e.type)).length;
+  const needed = ev.filter(e => [EV.ASSISTED, EV.MISSED].includes(e.type)).length;
+  const medOk = ev.filter(e => e.type === EV.MED_OK).length;
+  $('kWear').textContent = Fmt.dur(Store.wearMsToday());
+  $('kServed').textContent = served;
+  $('kNeeded').textContent = needed;
+  $('kMeds').textContent = `${medOk}/${s.meds.length}`;
+
+  /* alerts — push, not pull */
+  const al = [];
+  if (!s.wear.sessionStart && Store.wearMsToday() === 0) {
+    al.push(['w', 'Not worn yet today', 'The glasses have not been picked up. Nothing to do unless this repeats — two consecutive days is when we would ask you to check in.']);
+  }
+  const idle = ev.filter(e => e.type === EV.IDLE_OFF).length;
+  if (idle) {
+    al.push(['w', `Powered down ${idle}× after no movement`, 'Wear-time gap logged. Tracked as an adherence and apathy signal, not as non-compliance.']);
+  }
+  if (!s.settings.cameraEnabled) {
+    al.push(['r', 'Camera switch is off', 'He was told: “Camera off. I can still remind you about your medicine.” Face recognition is paused until it is switched back on.']);
+  }
+  const stageDowns = ev.filter(e => e.type === EV.STAGE_DOWN);
+  if (stageDowns.length) {
+    al.push(['r', 'Cue support increased', stageDowns.map(e => e.detail).join(' · ') + ' — he missed two retrievals in a row, so we put the help back.']);
+  }
+  $('alerts').innerHTML = al.map(([k, t, b]) =>
+    `<div class="note ${k}" style="margin-bottom:8px"><b>${t}.</b> ${b}</div>`).join('');
+
+  /* CTI */
+  const series = CTI.series();
+  const sig = CTI.signals();
+  const live = CTI.sufficient(sig) ? CTI.score(sig) : null;
+  $('ctiBadge').textContent = live === null
+    ? `no live data — ${sig.raw.tested}/${CTI.MIN_TESTED} trials`
+    : 'live ' + live;
+  $('chart').innerHTML = CTI.chart(series);
+  const fl = CTI.flag(series);
+  const FLAG = {
+    escalate:  ['r', 'ESCALATE'],
+    watch:     ['w', 'WATCH'],
+    recovered: ['g', 'RECOVERING'],
+  };
+  if (fl) {
+    const [cls, word] = FLAG[fl.level];
+    $('ctiFlag').innerHTML = `<div class="note ${cls}"><b>${word} &mdash; ${fl.z} SD.</b> ${fl.text}</div>`;
+  } else {
+    $('ctiFlag').innerHTML = `<div class="note g"><b>Stable.</b> No change beyond normal week-to-week variation.</div>`;
+  }
+  $('subs').innerHTML =
+      subBar('Retrieval &mdash; unaided share of tested trials', sig.retrieval, `${sig.raw.unaided}/${sig.raw.tested}`)
+    + subBar('Latency &mdash; speed of unaided retrieval', sig.latency, sig.raw.meanLat ? Math.round(sig.raw.meanLat) + 'ms' : '')
+    + subBar('Independence &mdash; how far the cues have vanished', sig.independence)
+    + subBar('Repetition &mdash; “tell me again” per hour', sig.repetition, sig.raw.perHour + '/h')
+    + subBar('Engagement &mdash; wear time vs window', sig.engagement, sig.raw.wearH + 'h');
+
+  /* who is he forgetting */
+  const pp = CTI.perPerson();
+  $('forget').innerHTML = pp.length ? pp.map(p => `
+    <div class="prow">
+      ${p.photo ? `<img class="avatar" src="${p.photo}" alt="">` : `<div class="avatar ph">${Fmt.initials(p.name)}</div>`}
+      <div class="who">
+        <b>${p.name}</b>
+        <span>${p.relation || ''}</span>
+        <div class="bar" style="margin-top:5px;max-width:190px">
+          <i class="${p.unaidedPct === null ? '' : p.unaidedPct >= 70 ? 'g' : p.unaidedPct >= 40 ? 'w' : 'r'}"
+             style="width:${p.unaidedPct ?? 0}%"></i></div>
+      </div>
+      <div style="text-align:right;flex:0 0 auto">
+        <div class="mono" style="font-size:15px;color:var(--ink)">
+          ${p.unaidedPct === null ? '&ndash;&ndash;' : p.unaidedPct + '%'}</div>
+        <div class="tiny mono">${p.promptsNeeded} prompts &middot; ${p.meanLatency ? p.meanLatency + 'ms' : 'no latency'}</div>
+        <div class="tiny"><span class="pill ${p.stage === 2 ? 'g' : p.stage === 1 ? 'w' : ''}">${p.stageLabel}</span></div>
+      </div>
+    </div>`).join('')
+    : `<div class="bd"><p class="sub" style="margin:0">No trials yet. Run the glasses view and let someone walk in.</p></div>`;
+
+  /* library */
+  $('libCount').textContent = `${s.people.length} people`;
+  $('cFaces').textContent = s.people.filter(p => p.descriptor.length === 128).length;
+  $('lib').innerHTML = s.people.length ? s.people.map(p => `
+    <div class="prow">
+      ${p.photo ? `<img class="avatar" src="${p.photo}" alt="">` : `<div class="avatar ph">${Fmt.initials(p.name)}</div>`}
+      <div class="who">
+        <b>${p.name}</b>
+        <span>${p.relation || '&mdash;'}</span>
+        <div class="tiny" style="margin-top:3px;color:var(--muted)">${p.memory || '<i>no memory recorded</i>'}</div>
+        <div class="tiny mono" style="margin-top:3px">
+          ${STAGES[p.cue.stage].label} &middot; interval ${p.cue.intervalH}h &middot; ladder ${Cues.progress(p)}%
+          ${p.descriptor.length === 128 ? '' : ' &middot; <span style="color:var(--red)">no face descriptor</span>'}
+        </div>
+      </div>
+      <div class="noprint" style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px">
+        <button class="btn sm" data-reset="${p.id}">Reset ladder</button>
+        <button class="btn sm" data-del="${p.id}">Remove</button>
+      </div>
+    </div>`).join('')
+    : `<div class="bd"><p class="sub" style="margin:0">Nobody enrolled. Add someone in the panel on the right, or load the sample family from the home page.</p></div>`;
+
+  $('lib').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    if (confirm('Remove this person and their descriptor?')) { Store.removePerson(b.dataset.del); render(); }
+  });
+  $('lib').querySelectorAll('[data-reset]').forEach(b => b.onclick = () => {
+    Cues.resetLadder(Store.person(b.dataset.reset)); render();
+  });
+
+  /* meds */
+  $('meds').innerHTML = `<tr><th>Time</th><th>Medication</th><th></th></tr>` + s.meds.map(m => {
+    const done = ev.some(e => e.type === EV.MED_OK && e.detail === m.id);
+    return `<tr>
+      <td class="mono">${m.time}</td>
+      <td><b>${m.name}</b><div class="tiny">${m.desc}</div></td>
+      <td style="text-align:right">${done
+        ? '<span class="pill g">Confirmed</span>'
+        : `<button class="btn sm noprint" data-med="${m.id}">Prompt now</button>`}</td>
+    </tr>`;
+  }).join('');
+  $('meds').querySelectorAll('[data-med]').forEach(b => b.onclick = async () => {
+    const m = s.meds.find(x => x.id === b.dataset.med);
+    Store.log(EV.MED_PROMPT, { detail: m.id });
+    await Speech.say(`It is ${m.time.replace(':', ' ')}. Time for your ${m.name}, ${m.desc}.`, { tag: 'med' });
+    Store.log(EV.MED_OK, { detail: m.id });
+    render();
+  });
+
+  /* consent register — real record, not a decorative table */
+  const c = s.consent;
+  $('camState').textContent = s.settings.cameraEnabled ? 'On' : 'Off';
+  $('camState').className = 'pill ' + (s.settings.cameraEnabled ? 'g' : 'r');
+  $('cDonorCell').innerHTML = c.donor.signedTs
+    ? `<span class="pill g">Recorded</span> <span class="tiny">${new Date(c.donor.signedTs).toLocaleDateString('en-GB')}, ${c.donor.language}</span>`
+    : `<span class="pill w">Not recorded</span>`;
+  $('cDoneeCell').innerHTML = c.donee.signedTs
+    ? `<span class="pill g">${c.donee.name || 'Signed'}</span> <span class="tiny">${c.donee.lpaScope}</span>`
+    : `<span class="pill w">Not signed</span>`;
+  const AS = { active: ['g','Active'], paused: ['w','Paused'], declined: ['r','Declined'], pending: ['w','Not yet asked'] };
+  const [acls, atxt] = AS[c.assent.status] || AS.pending;
+  $('assent').textContent = atxt;
+  $('assent').className = 'pill ' + acls;
+  $('cReview').textContent = c.reviewDueTs
+    ? `${new Date(c.reviewDueTs).toLocaleDateString('en-GB')} (${Store.retentionDaysLeft()}d)` : '—';
+
+  /* timeline */
+  const LABEL = {
+    [EV.PROMPT_FULL]: 'full prompt', [EV.PROMPT_CUE]: 'partial cue', [EV.PROMPT_CHIME]: 'chime cue',
+    [EV.UNAIDED]: 'retrieved unaided', [EV.ASSISTED]: 'needed help', [EV.MISSED]: 'missed',
+    [EV.TELL_AGAIN]: 'tapped: tell me again', [EV.UNKNOWN]: 'someone is here (not enrolled)',
+    [EV.MED_PROMPT]: 'medication prompt', [EV.MED_OK]: 'dose confirmed',
+    [EV.WEAR_ON]: 'glasses on', [EV.WEAR_OFF]: 'glasses off', [EV.IDLE_OFF]: 'powered down — no movement',
+    [EV.CAM_OFF]: 'camera disabled', [EV.CAM_ON]: 'camera enabled',
+    [EV.ENROL]: 'enrolled', [EV.STAGE_UP]: 'cue ladder advanced', [EV.STAGE_DOWN]: 'cue ladder regressed',
+    [EV.BRIEFING]: 'morning briefing', [EV.APPT_REMIND]: 'appointment reminder',
+    [EV.PLACE]: 'place prompt', [EV.REMINISCE]: 'reminiscence moment',
+    [EV.CONSENT]: 'consent recorded', [EV.ASSENT]: 'assent changed',
+    [EV.EXPORT]: 'data exported', [EV.ERASE]: 'data erased',
+  };
+  const KIND = {
+    [EV.UNAIDED]: 'ok', [EV.STAGE_UP]: 'ok', [EV.MED_OK]: 'ok',
+    [EV.MISSED]: 'bad', [EV.STAGE_DOWN]: 'bad', [EV.IDLE_OFF]: 'bad', [EV.CAM_OFF]: 'bad',
+  };
+  const list = s.events.slice(-90).reverse();
+  $('evCount').textContent = `${s.events.length} events`;
+  $('tl').innerHTML = list.length ? list.map(e => {
+    const p = e.personId ? Store.person(e.personId) : null;
+    // medication events carry an id in `detail`; show the drug, not the key
+    let det = e.detail;
+    if ((e.type === EV.MED_PROMPT || e.type === EV.MED_OK) && det) {
+      const m = s.meds.find(x => x.id === det);
+      det = m ? m.name : det;
+    }
+    const who = p ? ' — ' + p.name : (det && !e.personId ? ' — ' + det : '');
+    return `<div class="e ${KIND[e.type] || ''}">
+      <span class="t">${Fmt.hm(e.ts)}</span>
+      <span class="m">${(LABEL[e.type] || e.type) + who}${e.latency ? ` (${e.latency}ms)` : ''}</span>
+    </div>`;
+  }).join('') : `<div class="e"><span class="m" style="color:var(--faint)">No events yet.</span></div>`;
+
+  /* contextual micro-lesson — only 5% of caregivers have had any training,
+     so teach at the moment the system detects the trigger */
+  const repeats = ev.filter(e => e.type === EV.TELL_AGAIN).length;
+  $('lesson').innerHTML = repeats >= 3 ? `
+    <div class="card"><div class="hd"><h2>Because we noticed something &mdash; 90 seconds</h2>
+      <span class="right pill a">triggered by ${repeats} repeats today</span></div>
+      <div class="bd">
+        <h3>When he asks the same thing ten times</h3>
+        <p style="margin-bottom:6px">He is not being difficult and he is not testing you. The
+        question is gone the moment it is answered, so to him it is the first time, every time.</p>
+        <p style="margin-bottom:6px"><b>Answer it the same way each time.</b> Changing your wording
+        makes it a new problem to solve. Short, identical, warm.</p>
+        <p style="margin-bottom:0"><b>Answer the feeling, not the question.</b> “When is Mei Ling
+        coming?” is usually “am I alone?”. Say when, then sit down next to him.</p>
+      </div></div>` : '';
+}
+
+Store.onChange(render);
+render();
+setInterval(() => { $('kWear').textContent = Fmt.dur(Store.wearMsToday()); }, 15000);
+</script>
+</body>
+</html>

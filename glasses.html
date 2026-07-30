@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>INGAT — Glasses view (operator)</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23181614'/><circle cx='11' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><circle cx='23' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><path d='M16.4 16h-.8' stroke='%23b4472c' stroke-width='2.4'/></svg>">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">ING<em>A</em>T</div>
+  <div class="tag">Glasses view &middot; operator console</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="family.html">Setup</a>
+    <a href="glasses.html" class="on">Glasses</a>
+    <a href="care.html">Caregiver</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <div class="note w" style="margin-bottom:16px">
+    <b>This screen is not what the wearer sees.</b> The wearer has no display —
+    the glasses only speak into his ear. This console exists so an audience can
+    watch what the device is doing. Everything in the dark panel below is
+    <b>audio only</b> in the real product.
+  </div>
+
+  <div class="grid g-glasses">
+
+    <!-- ============================================ left: camera + earpiece -->
+    <div>
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas class="overlay" id="overlay"></canvas>
+        <div class="privacy">
+          <span class="led" id="led"></span><span id="ledTxt">CAMERA IDLE</span>
+        </div>
+        <div class="placeholder" id="ph">
+          <div style="font-size:15px;color:#c9c1b9;font-weight:600">Camera off</div>
+          <div style="max-width:340px;line-height:1.5">
+            Press <b style="color:#e0d8d0">Start glasses</b> to load the local
+            recognition models and open the camera. Nothing leaves this machine.
+          </div>
+          <div class="mono" id="phProg" style="font-size:11px;color:#7d756e"></div>
+        </div>
+      </div>
+
+      <div class="earpiece" style="margin-top:14px">
+        <div class="lbl">
+          <span class="wave off" id="wave"><i></i><i></i><i></i><i></i><i></i></span>
+          <span id="earLbl">What he hears</span>
+        </div>
+        <div class="said idle" id="said">Silent. The glasses speak only when something matters.</div>
+        <div class="meta" id="saidMeta"></div>
+        <div class="window-bar" id="winBar" style="display:none"><i id="winFill"></i></div>
+      </div>
+
+      <!-- controls -->
+      <div class="card" style="margin-top:14px">
+        <div class="hd"><h2>Controls</h2>
+          <div class="right row">
+            <label class="tog" title="Demo speed shortens the spaced-retrieval interval to seconds">
+              <input type="checkbox" id="demoSpeed" checked><span class="sw"></span>
+              <span class="sub">Demo speed</span>
+            </label>
+          </div>
+        </div>
+        <div class="bd">
+          <div class="row" style="margin-bottom:12px">
+            <button class="btn p" id="btnStart">Start glasses</button>
+            <button class="btn" id="btnStop" disabled>Stop</button>
+            <span class="spacer"></span>
+            <button class="btn" id="btnCam" title="The physical camera cutoff on the AI Glasses">Camera switch: ON</button>
+          </div>
+
+          <div class="row" style="margin-bottom:12px">
+            <button class="btn k" id="btnTap" style="min-width:150px">
+              &#9679; TAP &mdash; &ldquo;tell me again&rdquo;
+            </button>
+            <button class="btn g" id="btnGot">He said the name &nbsp;<span class="tiny" style="color:#cfe0d9">[G]</span></button>
+            <button class="btn" id="btnNo">He couldn&rsquo;t &nbsp;<span class="tiny">[N]</span></button>
+          </div>
+
+          <div class="row">
+            <label class="fld" style="margin:0;flex:1;min-width:150px">
+              <span>Language</span>
+              <select id="lang">
+                <option value="en-SG">English (Singapore)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="zh-CN">中文 Mandarin</option>
+                <option value="zh-HK">粵語 Cantonese</option>
+                <option value="ms-MY">Bahasa Melayu</option>
+                <option value="ta-IN">தமிழ் Tamil</option>
+              </select>
+            </label>
+            <label class="fld" style="margin:0;flex:1;min-width:150px">
+              <span>Speech rate (presbycusis)</span>
+              <select id="rate">
+                <option value="0.7">0.70 &mdash; slowest</option>
+                <option value="0.82" selected>0.82 &mdash; profile default</option>
+                <option value="1">1.00 &mdash; unadjusted</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="hr" style="margin:12px 0"></div>
+          <div class="telemetry" style="margin-bottom:6px">Places &mdash; in the real product these fire from GPS</div>
+          <div class="chipbar" id="placeChips"></div>
+
+          <p class="tiny" style="margin:10px 0 0">
+            Keyboard: <b>space</b> tap &middot; <b>G</b> he retrieved it &middot;
+            <b>N</b> he couldn&rsquo;t &middot; <b>1&ndash;9</b> simulate that person walking in
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================ right: state + log -->
+    <div>
+      <div class="card">
+        <div class="hd"><h2>Cue ladder</h2>
+          <span class="right pill" id="pplCount">0 enrolled</span>
+        </div>
+        <div class="bd tight">
+          <div class="plist" id="plist"></div>
+          <div class="bd" id="noPpl" style="display:none">
+            <p class="sub" style="margin:0">
+              Nobody enrolled yet. Open the
+              <a href="care.html">caregiver dashboard</a> to add faces, or load the
+              sample family from the home page.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="hd"><h2>Live signal</h2>
+          <span class="right pill a" id="ctiNow">CTI &ndash;&ndash;</span>
+        </div>
+        <div class="bd tight">
+          <div class="kpis" style="grid-template-columns:1fr 1fr">
+            <div class="kpi"><b id="kUn">0</b><span>unaided</span></div>
+            <div class="kpi"><b id="kPr">0</b><span>prompts needed</span></div>
+            <div class="kpi"><b id="kLat">&ndash;&ndash;</b><span>mean latency</span></div>
+            <div class="kpi"><b id="kWear">0m</b><span>wear time today</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="hd"><h2>Event log</h2>
+          <button class="btn sm right" id="btnClear">Clear</button>
+        </div>
+        <div class="bd tight"><div class="log" id="log"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/face-api.min.js"></script>
+<script src="js/store.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/cues.js"></script>
+<script src="js/cti.js"></script>
+<script src="js/maas.js"></script>
+<script src="js/schedule.js"></script>
+<script>
+/* ============================================================================
+   Glasses view controller
+   ==========================================================================*/
+Store.load();
+Store.listen();
+Speech.init();
+
+/* Consent is not decoration — it gates the camera.
+   If nobody has agreed, or assent has been paused or withdrawn, face
+   recognition does not run. Reminders still can, because they are a separate
+   purpose under the PDPA's Purpose Limitation obligation. */
+function mayRecognise() {
+  const c = Store.s.consent;
+  return c.purposes.recognition && c.assent.status === 'active' && !!c.donor.signedTs;
+}
+function mayRemind() {
+  const c = Store.s.consent;
+  return c.purposes.reminders && c.assent.status !== 'declined';
+}
+
+const $ = id => document.getElementById(id);
+let lastSpoken = '';
+let loopOn = false;
+let idleTimer = null;
+
+/* ---------------------------------------------------- earpiece caption */
+Speech.onSay = (text, meta) => {
+  const el = $('said');
+  el.textContent = text;
+  el.classList.remove('idle');
+  $('saidMeta').textContent = `${meta.lang || ''}  ·  rate ${Store.s.patient.speechRate}  ·  ${meta.tag || ''}`;
+  $('wave').classList.remove('off');
+  if (meta.tag !== 'chime') lastSpoken = text;
+  clearTimeout(Speech._t);
+  Speech._t = setTimeout(() => $('wave').classList.add('off'), 2600);
+};
+
+/* ---------------------------------------------------- log */
+function logLine(msg, kind = '') {
+  const d = document.createElement('div');
+  d.className = 'e ' + kind;
+  d.innerHTML = `<span class="t">${Fmt.clock(Date.now())}</span><span class="m"></span>`;
+  d.querySelector('.m').textContent = msg;
+  const L = $('log');
+  L.prepend(d);
+  while (L.children.length > 120) L.lastChild.remove();
+}
+
+/* ---------------------------------------------------- cue engine hooks */
+Cues.onEvent = (kind, d) => {
+  if (kind === 'cue') {
+    logLine(`FULL PROMPT — ${d.person.name} (errorless, no test)`, 'hi');
+  } else if (kind === 'window') {
+    logLine(`${d.stage.short} cue — ${d.stage.windowMs}ms retrieval window open`, 'hi');
+    runWindow(d.stage.windowMs);
+  } else if (kind === 'window-end') {
+    $('winBar').style.display = 'none';
+  } else if (kind === 'trial') {
+    const o = d.rec.outcome;
+    const k = o === 'unaided' ? 'ok' : (o === 'scaffolded' ? '' : 'bad');
+    const lat = d.rec.latency ? ` ${d.rec.latency}ms` : '';
+    const via = d.rec.via && d.rec.via !== 'scaffold' ? ` via ${d.rec.via}` : '';
+    logLine(`${o.toUpperCase()} — ${d.person.name}${lat}${via}`, k);
+    render();
+  } else if (kind === 'stage') {
+    logLine(`LADDER ${d.dir === 'up' ? 'ADVANCED' : 'REGRESSED'} — ${d.person.name} now ${d.stage.short}`, d.dir === 'up' ? 'ok' : 'bad');
+    render();
+  } else if (kind === 'unknown') {
+    logLine('NOT ENROLLED — said "someone is here". No name guessed, descriptor discarded.', '');
+  } else if (kind === 'tellagain') {
+    logLine('TAP — "tell me again"', '');
+  }
+};
+
+/* ---------------------------------------------------- scheduler hooks */
+Schedule.onFire = (kind, d) => {
+  const LBL = { briefing: 'MORNING BRIEFING', med: 'MEDICATION', appt: 'APPOINTMENT', reminisce: 'REMINISCENCE' };
+  logLine(`${LBL[kind] || kind.toUpperCase()} — ${d.text}`, 'hi');
+  render();
+};
+// the scheduler respects the reminders purpose independently of the camera
+const _tick = Schedule.tick.bind(Schedule);
+Schedule.tick = async function () { if (mayRemind()) return _tick(); };
+
+/* retrieval-window progress bar */
+function runWindow(ms) {
+  const bar = $('winBar'), fill = $('winFill');
+  bar.style.display = 'block';
+  fill.style.transition = 'none';
+  fill.style.transform = 'scaleX(1)';
+  requestAnimationFrame(() => {
+    fill.style.transition = `transform ${ms}ms linear`;
+    fill.style.transform = 'scaleX(0)';
+  });
+}
+
+/* ---------------------------------------------------- start / stop */
+$('btnStart').onclick = async () => {
+  const b = $('btnStart');
+  b.disabled = true;
+  try {
+    $('phProg').textContent = 'loading local models…';
+    await Vision.loadModels((name, i, n) => {
+      $('phProg').textContent = `loading ${name} (${i + 1}/${n})…`;
+    });
+    $('phProg').textContent = 'opening camera…';
+    await Vision.startCamera($('video'), $('overlay'));
+    $('ph').style.display = 'none';
+    $('led').classList.add('on');
+    $('ledTxt').textContent = 'CAMERA ACTIVE';
+    $('btnStop').disabled = false;
+    Store.wearOn();
+    loopOn = true;
+    logLine('Glasses on. Models loaded locally, no network calls.', 'ok');
+    if (!mayRecognise()) {
+      logLine('RECOGNITION BLOCKED — consent not recorded, or assent paused. Reminders still run. Open the Privacy page.', 'bad');
+    }
+    Schedule.start(20000);
+    loop();
+    resetIdle();
+  } catch (e) {
+    console.error(e);
+    $('phProg').textContent = 'Could not start: ' + e.message;
+    logLine('Camera/model failure: ' + e.message + ' — use keys 1-9 to simulate instead.', 'bad');
+    b.disabled = false;
+  }
+};
+
+$('btnStop').onclick = () => {
+  loopOn = false;
+  Schedule.stop();
+  Vision.stopCamera();
+  Store.wearOff();
+  $('ph').style.display = 'grid';
+  $('phProg').textContent = '';
+  $('led').classList.remove('on');
+  $('ledTxt').textContent = 'CAMERA IDLE';
+  $('btnStart').disabled = false;
+  $('btnStop').disabled = true;
+  logLine('Glasses off.', '');
+  render();
+};
+
+/* the physical camera cutoff — and it must announce itself */
+$('btnCam').onclick = async () => {
+  const s = Store.s.settings;
+  s.cameraEnabled = !s.cameraEnabled;
+  Store.save();
+  $('btnCam').textContent = 'Camera switch: ' + (s.cameraEnabled ? 'ON' : 'OFF');
+  $('btnCam').className = 'btn' + (s.cameraEnabled ? '' : ' p');
+  $('led').classList.toggle('on', s.cameraEnabled && loopOn);
+  $('ledTxt').textContent = s.cameraEnabled ? (loopOn ? 'CAMERA ACTIVE' : 'CAMERA IDLE') : 'CAMERA DISABLED';
+  Store.log(s.cameraEnabled ? EV.CAM_ON : EV.CAM_OFF);
+  logLine(`Camera ${s.cameraEnabled ? 'enabled' : 'DISABLED'} — state announced and logged to the caregiver.`, s.cameraEnabled ? 'ok' : 'bad');
+  // never a silent failure: he is told what changed
+  await Speech.say(s.cameraEnabled
+    ? 'Camera on. I can help you with faces again.'
+    : 'Camera off. I can still remind you about your medicine.', { tag: 'system' });
+};
+
+/* ---------------------------------------------------- detection loop */
+async function loop() {
+  if (!loopOn) return;
+  try {
+    if (Store.s.settings.cameraEnabled && mayRecognise()) {
+      const matches = await Vision.detectOnce();
+      Vision.draw(matches);
+      if (matches.length) {
+        Store.wearOn();
+        resetIdle();
+        const known = matches.filter(m => m.personId);
+        if (known.length) {
+          const p = Store.person(known[0].personId);
+          if (p && Cues.due(p)) await Cues.trial(p);
+        } else if (matches.length && !Cues._busy) {
+          await Cues.unknown();
+        }
+      }
+    }
+  } catch (e) { console.warn('loop', e); }
+  setTimeout(() => requestAnimationFrame(loop), 260);
+}
+
+/* idle detection -> power down -> notify the caregiver.
+   Framed as an adherence + apathy sensor, not as policing. */
+function resetIdle() {
+  clearTimeout(idleTimer);
+  const ms = Store.s.settings.demoSpeed ? 45000 : 20 * 60 * 1000;
+  idleTimer = setTimeout(() => {
+    if (!loopOn) return;
+    Store.wearOff(true);
+    logLine('No movement — powered down. Caregiver notified (wear-time signal).', 'bad');
+    render();
+  }, ms);
+}
+
+/* ---------------------------------------------------- manual controls */
+$('btnTap').onclick = () => Cues.tellAgain(lastSpoken);
+$('btnGot').onclick = () => Listener.confirm(true);
+$('btnNo').onclick  = () => Listener.confirm(false);
+$('btnClear').onclick = () => { $('log').innerHTML = ''; };
+
+$('demoSpeed').onchange = e => { Store.s.settings.demoSpeed = e.target.checked; Store.save(); };
+$('lang').onchange = e => { Store.s.patient.language = e.target.value; Store.save(); };
+$('rate').onchange = e => { Store.s.patient.speechRate = +e.target.value; Store.save(); };
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); Cues.tellAgain(lastSpoken); }
+  else if (e.key.toLowerCase() === 'g') Listener.confirm(true);
+  else if (e.key.toLowerCase() === 'n') Listener.confirm(false);
+  else if (/^[1-9]$/.test(e.key)) {
+    const p = Store.s.people[+e.key - 1];
+    if (p) { logLine(`SIMULATED — ${p.name} walks in`, 'hi'); Cues._cooldown.delete(p.id); Cues.trial(p); }
+  }
+});
+
+/* ---------------------------------------------------- render */
+function render() {
+  const ppl = Store.s.people;
+  $('pplCount').textContent = `${ppl.length} enrolled`;
+
+  // places — dead schema no longer; these are the GPS triggers, driven by hand
+  $('placeChips').innerHTML = Store.s.places.length
+    ? Store.s.places.map(p => `<button class="chip" data-place="${p.id}">${p.label}</button>`).join('')
+    : `<span class="tiny">No places set. Add them in <a href="family.html">Setup</a>.</span>`;
+  $('placeChips').querySelectorAll('[data-place]').forEach(b => b.onclick = async () => {
+    const pl = Store.s.places.find(x => x.id === b.dataset.place);
+    if (!pl || Cues._busy) return;
+    Store.log(EV.PLACE, { detail: pl.label });
+    logLine(`PLACE — arrived at ${pl.label}`, 'hi');
+    await Speech.say(pl.say, { tag: 'place' });
+  });
+  $('noPpl').style.display = ppl.length ? 'none' : 'block';
+
+  $('plist').innerHTML = ppl.map((p, i) => {
+    const st = STAGES[p.cue.stage];
+    const tested = p.trials.filter(t => t.outcome !== 'scaffolded');
+    const un = tested.filter(t => t.outcome === 'unaided').length;
+    const pct = tested.length ? Math.round(un / tested.length * 100) : null;
+    return `<div class="prow">
+      ${p.photo
+        ? `<img class="avatar" src="${p.photo}" alt="">`
+        : `<div class="avatar ph">${Fmt.initials(p.name)}</div>`}
+      <div class="who">
+        <b>${p.name} <span class="tiny mono" style="color:#9a938c">[${i + 1}]</span></b>
+        <span>${p.relation || ''} &middot; ${p.trials.length} trials${pct !== null ? ` &middot; ${pct}% unaided` : ''}</span>
+      </div>
+      <div style="text-align:right">
+        <div class="ladder" title="${st.label}">
+          ${[0,1,2].map(k => `<i class="${k <= p.cue.stage ? 'on' : ''}"></i>`).join('')}
+        </div>
+        <div class="tiny mono" style="margin-top:3px">${st.short} &middot; ${p.cue.intervalH}h</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const sig = CTI.signals();
+  const cti = CTI.sufficient(sig) ? CTI.score(sig) : null;
+  $('ctiNow').textContent = cti === null
+    ? `CTI –– (${sig.raw.tested}/${CTI.MIN_TESTED} trials)`
+    : 'CTI ' + cti;
+  $('kUn').textContent = sig.raw.unaided;
+  $('kPr').textContent = sig.raw.assisted + sig.raw.missed;
+  $('kLat').textContent = sig.raw.meanLat ? Math.round(sig.raw.meanLat) + 'ms' : '––';
+  $('kWear').textContent = Fmt.dur(Store.wearMsToday());
+}
+
+Store.onChange(render);
+$('lang').value = Store.s.patient.language;
+$('rate').value = String(Store.s.patient.speechRate);
+$('demoSpeed').checked = Store.s.settings.demoSpeed;
+render();
+setInterval(() => { $('kWear').textContent = Fmt.dur(Store.wearMsToday()); }, 15000);
+logLine('Console ready. ' + (Listener.supported ? 'Speech recognition available.' : 'No speech recognition — use G / N.'), '');
+</script>
+</body>
+</html>

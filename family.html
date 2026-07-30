@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>INGAT — Setup Studio</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23181614'/><circle cx='11' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><circle cx='23' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><path d='M16.4 16h-.8' stroke='%23b4472c' stroke-width='2.4'/></svg>">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">ING<em>A</em>T</div>
+  <div class="tag">Setup Studio &middot; for the family</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="family.html" class="on">Setup</a>
+    <a href="glasses.html">Glasses</a>
+    <a href="care.html">Caregiver</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <div class="row" style="align-items:flex-start;margin-bottom:6px">
+    <div style="max-width:640px">
+      <h1>You load the memories. The glasses do the remembering.</h1>
+      <p class="sub">
+        Everything here is something only a family knows. Ten minutes now, and he
+        stops having to hold it all himself.
+      </p>
+    </div>
+    <span class="spacer"></span>
+    <div style="text-align:right">
+      <div class="telemetry">setup completeness</div>
+      <div style="font-size:27px;font-weight:700;color:var(--accent);line-height:1" id="pctDone">0%</div>
+    </div>
+  </div>
+
+  <div class="steps" id="steps">
+    <button data-p="people"><span class="n">01</span><span class="t">People</span><span class="c" id="cPeople">0</span></button>
+    <button data-p="cal"><span class="n">02</span><span class="t">Calendar</span><span class="c" id="cCal">0</span></button>
+    <button data-p="meds"><span class="n">03</span><span class="t">Medication</span><span class="c" id="cMeds">0</span></button>
+    <button data-p="places"><span class="n">04</span><span class="t">Places</span><span class="c" id="cPlaces">0</span></button>
+    <button data-p="story"><span class="n">05</span><span class="t">Life story</span><span class="c" id="cStory">0</span></button>
+    <button data-p="voice"><span class="n">06</span><span class="t">Your voice</span><span class="c" id="cVoice">0</span></button>
+    <button data-p="preview"><span class="n">07</span><span class="t">What he hears</span><span class="c">&rarr;</span></button>
+  </div>
+
+  <!-- ================================================================ 01 -->
+  <section class="pane on" id="p-people">
+    <div class="grid g-2">
+      <div class="card">
+        <div class="hd"><h2>Add the people he sees</h2><span class="right pill a">drag photos in</span></div>
+        <div class="bd">
+          <div class="drop" id="drop">
+            <b>Drop photos here</b>
+            <span class="sub">or click to choose &mdash; several at once is fine</span>
+            <input type="file" id="files" accept="image/*" multiple hidden>
+          </div>
+          <div id="dropStatus" class="telemetry" style="margin-top:9px"></div>
+          <div class="thumbs" id="thumbs" style="margin-top:12px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><h2>Who is this?</h2><span class="right telemetry" id="qPos"></span></div>
+        <div class="bd" id="tagger">
+          <div class="empty">Drop some photos and they will queue up here, one at a time.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="hd"><h2>Enrolled</h2><span class="right pill" id="pplPill">0 people</span></div>
+      <div class="bd tight"><div id="pplList"></div></div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 02 -->
+  <section class="pane" id="p-cal">
+    <div class="grid g-care">
+      <div class="card">
+        <div class="hd">
+          <button class="btn sm" id="mPrev">&larr;</button>
+          <h2 id="mLabel" style="min-width:170px;text-align:center"></h2>
+          <button class="btn sm" id="mNext">&rarr;</button>
+          <span class="right telemetry">click a day to add something</span>
+        </div>
+        <div class="bd">
+          <div class="cal" id="cal"></div>
+          <div class="row tiny" style="margin-top:10px;gap:14px">
+            <span><b style="color:var(--accent)">&#9632;</b> appointment</span>
+            <span><b style="color:var(--amber)">&#9632;</b> medication, every day</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="hd"><h2 id="apptFormTitle">Add to the calendar</h2></div>
+          <div class="bd">
+            <label class="fld"><span>What is it</span>
+              <input type="text" id="aTitle" placeholder="Memory clinic review"></label>
+            <div class="row" style="gap:8px">
+              <label class="fld" style="flex:1"><span>Date</span>
+                <input type="date" id="aDate" style="font:inherit;font-size:13px;width:100%;padding:8px 10px;border:1px solid var(--rule);border-radius:7px"></label>
+              <label class="fld" style="flex:0 0 108px"><span>Time</span>
+                <input type="time" id="aTime" value="10:00"></label>
+            </div>
+            <label class="fld"><span>Where</span>
+              <input type="text" id="aPlace" placeholder="Tan Tock Seng, Clinic 3B"></label>
+            <label class="fld"><span>With whom</span>
+              <input type="text" id="aWho" placeholder="Dr Rahim"></label>
+            <label class="fld"><span>Remind him</span>
+              <div class="chipbar" id="remindChips">
+                <button class="chip on" data-m="1440">the day before</button>
+                <button class="chip on" data-m="60">1 hour before</button>
+                <button class="chip" data-m="15">15 min before</button>
+              </div>
+            </label>
+            <button class="btn p wide" id="aAdd">Add to calendar</button>
+            <div class="hr"></div>
+            <div class="say-preview" id="apptPreview"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd"><h2>Coming up</h2></div>
+          <div class="bd tight"><div id="apptList"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 03 -->
+  <section class="pane" id="p-meds">
+    <div class="grid g-care">
+      <div class="card">
+        <div class="hd"><h2>Medication</h2>
+          <span class="right telemetry">only 55.5% of Singapore's elderly are adherent</span></div>
+        <div class="bd tight"><table id="medTable"></table></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>Add a medication</h2></div>
+        <div class="bd">
+          <label class="fld"><span>Name</span><input type="text" id="mName" placeholder="Donepezil"></label>
+          <label class="fld"><span>Describe it the way he would</span>
+            <input type="text" id="mDesc" placeholder="the white pill, with water"></label>
+          <p class="tiny" style="margin:-4px 0 10px">
+            Not the dosage &mdash; the <b>appearance</b>. He is looking at a pill box, not a prescription.
+          </p>
+          <label class="fld"><span>Time</span><input type="time" id="mTime" value="13:00"></label>
+          <button class="btn p wide" id="mAdd">Add medication</button>
+          <div class="hr"></div>
+          <div class="say-preview" id="medPreview"></div>
+          <p class="tiny" style="margin:10px 0 0">
+            If he does not confirm within 15 minutes he is asked once more, then it
+            goes to you. <b>Once more, not repeatedly</b> &mdash; nagging someone who
+            has already taken it teaches him to distrust himself.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 04 -->
+  <section class="pane" id="p-places">
+    <div class="grid g-care">
+      <div class="card">
+        <div class="hd"><h2>Places he should not have to work out</h2></div>
+        <div class="bd tight"><div id="placeList"></div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>Add a place</h2></div>
+        <div class="bd">
+          <label class="fld"><span>Place</span><input type="text" id="plLabel" placeholder="Lift lobby"></label>
+          <label class="fld"><span>What he should hear there</span>
+            <textarea id="plSay" placeholder="This is the lift lobby. Your flat is on the seventh floor, unit 12."></textarea></label>
+          <button class="btn p wide" id="plAdd">Add place</button>
+          <div class="hr"></div>
+          <div class="say-preview" id="placePreview"></div>
+          <p class="tiny" style="margin:10px 0 0">
+            Give the answer, not the question. Never <i>&ldquo;do you remember where
+            you live?&rdquo;</i> &mdash; that is a test, and he will fail it in public.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 05 -->
+  <section class="pane" id="p-story">
+    <div class="grid g-care">
+      <div class="card">
+        <div class="hd"><h2>His life</h2><span class="right pill" id="storyPill">0</span></div>
+        <div class="bd tight"><div id="storyList"></div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>Add a memory</h2></div>
+        <div class="bd">
+          <label class="fld"><span>Kind</span>
+            <select id="stKind">
+              <option value="work">Work</option>
+              <option value="home">Home &amp; growing up</option>
+              <option value="song">A song</option>
+              <option value="event">An event</option>
+            </select></label>
+          <label class="fld"><span>Short name</span>
+            <input type="text" id="stLabel" placeholder="Textile factory, Chinatown"></label>
+          <label class="fld"><span>One or two sentences</span>
+            <textarea id="stDetail" placeholder="You cut cloth there for thirty-one years."></textarea></label>
+          <button class="btn p wide" id="stAdd">Add memory</button>
+          <div class="hr"></div>
+          <div class="say-preview" id="storyPreview"></div>
+          <p class="tiny" style="margin:10px 0 0">
+            One of these is played each afternoon after 3pm, rotating. Late afternoon
+            is when restlessness builds. Across fourteen randomised trials, reminiscence
+            therapy showed a significant cognitive effect <b>only when delivered
+            one-to-one</b> &mdash; which is the thing a device can do and a rota of
+            visitors cannot.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 06 -->
+  <section class="pane" id="p-voice">
+    <div class="grid g-2">
+      <div class="card">
+        <div class="hd"><h2>Record it in your own voice</h2><span class="right pill a">optional, high value</span></div>
+        <div class="bd">
+          <p class="sub">
+            A familiar voice is recognised faster than a synthetic one, is harder to
+            ignore, and is calming rather than clinical. Record the line you would
+            actually say.
+          </p>
+          <label class="fld"><span>Whose prompt</span><select id="vPerson"></select></label>
+          <div class="voice" id="vScript" style="margin-bottom:14px">
+            <span class="say-mark">read this aloud</span>
+            Choose someone above.
+          </div>
+          <div class="row">
+            <button class="btn k" id="vRec">&#9679; Start recording</button>
+            <button class="btn" id="vPlay" disabled>Play back</button>
+            <button class="btn" id="vDel" disabled>Delete</button>
+            <span class="telemetry" id="vStatus"></span>
+          </div>
+          <audio id="vAudio" style="display:none"></audio>
+          <p class="tiny" style="margin:12px 0 0">
+            Stored on this device only, never uploaded. If no recording exists for
+            someone, the glasses fall back to the synthetic voice.
+          </p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>Recorded</h2></div>
+        <div class="bd tight"><div id="voiceList"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 07 -->
+  <section class="pane" id="p-preview">
+    <div class="card" style="margin-bottom:16px">
+      <div class="hd"><h2>His day, as he will hear it</h2>
+        <button class="btn sm right" id="playAll">Play the whole day</button></div>
+      <div class="bd"><div id="dayPreview" class="stack"></div></div>
+    </div>
+
+    <div class="grid g-2">
+      <div class="card">
+        <div class="hd"><h2>Ready?</h2></div>
+        <div class="bd">
+          <div id="readiness"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>Before you finish</h2></div>
+        <div class="bd">
+          <div class="note">
+            <b>Consent is not done yet.</b> Enrolling a face creates biometric data
+            about a real person. Go to the
+            <a href="privacy.html">Privacy &amp; Trust Centre</a> and record consent
+            properly &mdash; with him, not just about him.
+          </div>
+          <div class="row" style="margin-top:12px">
+            <a class="btn p" href="privacy.html">Record consent</a>
+            <a class="btn" href="glasses.html">Try the glasses</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script src="js/face-api.min.js"></script>
+<script src="js/store.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/cues.js"></script>
+<script src="js/cti.js"></script>
+<script src="js/maas.js"></script>
+<script src="js/schedule.js"></script>
+<script>
+Store.load(); Store.listen(); Speech.init();
+const $ = id => document.getElementById(id);
+const esc = s => (s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ------------------------------------------------------------ nav */
+$('steps').addEventListener('click', e => {
+  const b = e.target.closest('button[data-p]'); if (!b) return;
+  document.querySelectorAll('.steps button').forEach(x => x.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  $('p-' + b.dataset.p).classList.add('on');
+  if (b.dataset.p === 'preview') renderPreview();
+  if (b.dataset.p === 'cal') renderCal();
+});
+
+/* a small reusable "this is what he will hear" block, in the voice serif */
+function sayPreview(el, text) {
+  if (!text) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="voice sm"><span class="say-mark">he will hear</span>${esc(text)}</div>
+    <button class="btn sm" style="margin-top:8px" data-speak="1">Hear it</button>`;
+  el.querySelector('[data-speak]').onclick = () => Speech.say(text, { tag: 'preview' });
+}
+
+/* ============================================================== 01 PEOPLE */
+let queue = [];
+
+$('drop').onclick = () => $('files').click();
+['dragenter','dragover'].forEach(t => $('drop').addEventListener(t, e => {
+  e.preventDefault(); $('drop').classList.add('over');
+}));
+['dragleave','drop'].forEach(t => $('drop').addEventListener(t, e => {
+  e.preventDefault(); $('drop').classList.remove('over');
+}));
+$('drop').addEventListener('drop', e => intake([...e.dataTransfer.files]));
+$('files').onchange = e => intake([...e.target.files]);
+
+async function intake(files) {
+  const imgs = files.filter(f => f.type.startsWith('image/'));
+  if (!imgs.length) return;
+  $('dropStatus').innerHTML = `loading the face model&hellip; <span style="color:var(--faint)">first time only, 6.5&nbsp;MB from disk</span>`;
+  try {
+    await Vision.loadModels((n, i, t) => {
+      $('dropStatus').innerHTML = `loading <b>${n}</b> ${i + 1}/${t}&hellip;`;
+    });
+  } catch (err) {
+    $('dropStatus').innerHTML = `<span style="color:var(--red)">${err.message}</span>`;
+    return;
+  }
+
+  const t0 = performance.now();
+  let found = 0;
+  const passes = [];
+  for (let i = 0; i < imgs.length; i++) {
+    $('dropStatus').innerHTML = `scanning <b>${i + 1}/${imgs.length}</b> &mdash; ${imgs[i].name.slice(0, 24)}`;
+    const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(imgs[i]); });
+    const img = new Image(); img.src = dataUrl;
+    await new Promise(r => { img.complete ? r() : (img.onload = r, img.onerror = r); });
+    let d = null;
+    try { d = await Vision.fromImage(img); } catch (e) { console.warn('fromImage', e); }
+    if (d) { found++; passes.push(d.attempt || 1); }
+    queue.push({ id: 'q' + Math.random().toString(36).slice(2, 8), photo: dataUrl, descriptor: d,
+                 name: imgs[i].name, attempt: d ? d.attempt : null });
+  }
+
+  const ms = Math.round(performance.now() - t0);
+  const retried = passes.filter(p => p > 1).length;
+  $('dropStatus').innerHTML =
+    `<b>${found}/${imgs.length}</b> faces found in ${ms}ms &middot; backend <b>${Vision.backend}</b>`
+    + (retried ? ` &middot; ${retried} needed a second pass` : '')
+    + (found < imgs.length
+        ? `<br><span style="color:var(--red)">${imgs.length - found} with no face.</span> Front-on, well lit, face at least ~100px across works best.`
+        : '');
+  renderThumbs(); renderTagger();
+}
+
+function renderThumbs() {
+  $('thumbs').innerHTML = queue.map(q => `
+    <div class="thumb ${q.descriptor ? '' : 'bad'}">
+      <img src="${q.photo}" alt="">
+      ${q.descriptor ? '' : '<div class="flag">NO FACE FOUND</div>'}
+      <button class="x" data-q="${q.id}" title="Remove">&times;</button>
+      <div class="meta"><b>${esc(q.name.slice(0, 16))}</b><span>${
+        q.descriptor ? (q.attempt > 1 ? `ready · pass ${q.attempt}` : 'ready') : 'cannot recognise'
+      }</span></div>
+    </div>`).join('');
+  $('thumbs').querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
+    queue = queue.filter(x => x.id !== b.dataset.q); renderThumbs(); renderTagger();
+  });
+}
+
+function renderTagger() {
+  const q = queue[0];
+  $('qPos').textContent = queue.length ? `1 of ${queue.length}` : '';
+  if (!q) {
+    $('tagger').innerHTML = `<div class="empty">Queue empty. Drop more photos on the left.</div>`;
+    return;
+  }
+  $('tagger').innerHTML = `
+    <img src="${q.photo}" style="width:100%;max-height:190px;object-fit:cover;border-radius:8px;border:1px solid var(--rule);margin-bottom:12px">
+    ${q.descriptor ? '' : `<div class="note w" style="margin-bottom:12px">
+      <b>No face detected in this photo.</b> You can still add them &mdash; they will
+      appear in the library and in his life story &mdash; but the glasses will not be
+      able to recognise them. A clear, front-on, well-lit photo works best.</div>`}
+    <label class="fld"><span>Name</span><input type="text" id="tName" placeholder="Mei Ling"></label>
+    <label class="fld"><span>Relationship, as he would say it</span>
+      <input type="text" id="tRel" placeholder="Your daughter"></label>
+    <label class="fld"><span>One thing you did together</span>
+      <textarea id="tMem" placeholder="She came last Sunday and brought kaya toast"></textarea></label>
+    <div id="tPrev" style="margin-bottom:12px"></div>
+    <div class="row">
+      <button class="btn p" id="tSave">Add to his memory</button>
+      <button class="btn" id="tSkip">Skip this photo</button>
+    </div>`;
+
+  const upd = () => {
+    const n = $('tName').value.trim(); if (!n) { $('tPrev').innerHTML = ''; return; }
+    sayPreview($('tPrev'), Cues.fullPrompt({ name: n, relation: $('tRel').value.trim(), memory: $('tMem').value.trim() }));
+  };
+  ['tName','tRel','tMem'].forEach(i => $(i).oninput = upd);
+
+  $('tSave').onclick = () => {
+    const name = $('tName').value.trim();
+    if (!name) { $('tName').focus(); return; }
+    Store.addPerson({ name, relation: $('tRel').value.trim(), memory: $('tMem').value.trim(),
+                      photo: q.photo, descriptor: q.descriptor });
+    Store.audit('person.enrol', `${name}${q.descriptor ? ' (with face descriptor)' : ' (no descriptor)'}`);
+    queue.shift(); renderThumbs(); renderTagger(); render();
+  };
+  $('tSkip').onclick = () => { queue.shift(); renderThumbs(); renderTagger(); };
+}
+
+/* ============================================================== 02 CALENDAR */
+let calMonth = new Date(); calMonth.setDate(1);
+let remindSel = [1440, 60];
+
+$('remindChips').onclick = e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  c.classList.toggle('on');
+  remindSel = [...$('remindChips').querySelectorAll('.chip.on')].map(x => +x.dataset.m);
+};
+$('mPrev').onclick = () => { calMonth.setMonth(calMonth.getMonth() - 1); renderCal(); };
+$('mNext').onclick = () => { calMonth.setMonth(calMonth.getMonth() + 1); renderCal(); };
+
+function renderCal() {
+  $('mLabel').textContent = calMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+  const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));  // Monday-first
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let html = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const out = d.getMonth() !== calMonth.getMonth();
+    const isToday = d.getTime() === today.getTime();
+    const appts = Store.s.appointments.filter(a => new Date(a.when).toDateString() === d.toDateString());
+    html += `<div class="day ${out ? 'out' : ''} ${isToday ? 'today' : ''}" data-day="${d.toISOString().slice(0,10)}">
+      <div class="d">${d.getDate()}</div>
+      ${appts.map(a => `<button class="ev appt" data-appt="${a.id}" title="${esc(a.title)}">${Fmt.hm(a.when)} ${esc(a.title)}</button>`).join('')}
+      ${!out && isToday ? Store.s.meds.map(m => `<button class="ev med" data-med="${m.id}">${m.time} ${esc(m.name)}</button>`).join('') : ''}
+    </div>`;
+  }
+  $('cal').innerHTML = html;
+  $('cal').querySelectorAll('[data-day]').forEach(el => el.onclick = e => {
+    if (e.target.closest('[data-appt],[data-med]')) return;
+    $('aDate').value = el.dataset.day; $('aTitle').focus();
+  });
+  $('cal').querySelectorAll('[data-appt]').forEach(b => b.onclick = () => {
+    const a = Store.s.appointments.find(x => x.id === b.dataset.appt);
+    if (a && confirm(`Remove "${a.title}"?`)) { Store.removeAppointment(a.id); render(); renderCal(); }
+  });
+  renderApptList();
+}
+
+function renderApptList() {
+  const up = Store.upcoming(8);
+  $('apptList').innerHTML = up.length ? up.map(a => `
+    <div class="prow">
+      <div class="who">
+        <b>${esc(a.title)}</b>
+        <span class="telemetry">${new Date(a.when).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})} ${Fmt.hm(a.when)}${a.place ? ' · ' + esc(a.place) : ''}</span>
+        <div class="tiny" style="margin-top:3px">reminds ${(a.remind||[]).map(m => m>=1440?'1 day':m>=60?(m/60)+'h':m+'m').join(', ') || 'never'} before</div>
+      </div>
+      <button class="btn sm" data-del="${a.id}">Remove</button>
+    </div>`).join('') : `<div class="empty">Nothing coming up.</div>`;
+  $('apptList').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    Store.removeAppointment(b.dataset.del); render(); renderCal();
+  });
+}
+
+function apptPrev() {
+  const t = $('aTitle').value.trim(); if (!t) { $('apptPreview').innerHTML = ''; return; }
+  let s = `${t} in 1 hour`;
+  if ($('aPlace').value.trim()) s += `, at ${$('aPlace').value.trim()}`;
+  if ($('aWho').value.trim()) s += `, with ${$('aWho').value.trim()}`;
+  sayPreview($('apptPreview'), s + '.');
+}
+['aTitle','aPlace','aWho'].forEach(i => $(i).oninput = apptPrev);
+
+$('aAdd').onclick = () => {
+  const title = $('aTitle').value.trim();
+  const date = $('aDate').value, time = $('aTime').value;
+  if (!title || !date) { alert('A name and a date, at least.'); return; }
+  Store.addAppointment({
+    title, when: new Date(date + 'T' + (time || '10:00')).getTime(),
+    place: $('aPlace').value.trim(), withWhom: $('aWho').value.trim(),
+    remind: remindSel.slice(), notes: '',
+  });
+  Store.save();
+  $('aTitle').value = $('aPlace').value = $('aWho').value = '';
+  $('apptPreview').innerHTML = '';
+  renderCal(); render();
+};
+
+/* ============================================================== 03 MEDS */
+function medPrev() {
+  const n = $('mName').value.trim(); if (!n) { $('medPreview').innerHTML = ''; return; }
+  sayPreview($('medPreview'), `It is ${($('mTime').value||'').replace(':',' ')}. Time for your ${n}, ${$('mDesc').value.trim() || 'your tablet'}.`);
+}
+['mName','mDesc','mTime'].forEach(i => $(i).oninput = medPrev);
+$('mAdd').onclick = () => {
+  const name = $('mName').value.trim(); if (!name) return;
+  Store.addMed({ name, desc: $('mDesc').value.trim(), time: $('mTime').value });
+  Store.save(); $('mName').value = $('mDesc').value = ''; $('medPreview').innerHTML = ''; render();
+};
+
+/* ============================================================== 04 PLACES */
+function placePrev() { sayPreview($('placePreview'), $('plSay').value.trim()); }
+$('plSay').oninput = placePrev;
+$('plAdd').onclick = () => {
+  const label = $('plLabel').value.trim(), say = $('plSay').value.trim();
+  if (!label || !say) return;
+  Store.addPlace({ label, say }); Store.save();
+  $('plLabel').value = $('plSay').value = ''; $('placePreview').innerHTML = ''; render();
+};
+
+/* ============================================================== 05 STORY */
+function storyPrev() {
+  const l = $('stLabel').value.trim(); if (!l) { $('storyPreview').innerHTML = ''; return; }
+  sayPreview($('storyPreview'), `Do you remember — ${l}. ${$('stDetail').value.trim()}`);
+}
+['stLabel','stDetail'].forEach(i => $(i).oninput = storyPrev);
+$('stAdd').onclick = () => {
+  const label = $('stLabel').value.trim(); if (!label) return;
+  Store.addStory({ kind: $('stKind').value, label, detail: $('stDetail').value.trim() });
+  Store.save(); $('stLabel').value = $('stDetail').value = ''; $('storyPreview').innerHTML = ''; render();
+};
+
+/* ============================================================== 06 VOICE */
+let rec = null, chunks = [], recTimer = null;
+
+$('vPerson').onchange = () => {
+  const p = Store.person($('vPerson').value);
+  $('vScript').innerHTML = p
+    ? `<span class="say-mark">read this aloud</span>${esc(Cues.fullPrompt(p))}`
+    : `<span class="say-mark">read this aloud</span>Choose someone above.`;
+  const has = !!Store.s.voices[$('vPerson').value];
+  $('vPlay').disabled = !has; $('vDel').disabled = !has;
+  $('vStatus').textContent = has ? 'recording saved' : 'no recording yet';
+};
+
+$('vRec').onclick = async () => {
+  if (rec && rec.state === 'recording') { rec.stop(); return; }
+  const id = $('vPerson').value; if (!id) { alert('Choose whose prompt first.'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    rec = new MediaRecorder(stream); chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recTimer);
+      const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+      const fr = new FileReader();
+      fr.onload = () => {
+        Store.s.voices[id] = fr.result; Store.save();
+        Store.audit('voice.record', `prompt recorded for ${Store.person(id)?.name || id}`);
+        $('vRec').textContent = '● Start recording'; $('vRec').className = 'btn k';
+        $('vPerson').onchange(); render();
+      };
+      fr.readAsDataURL(blob);
+    };
+    rec.start();
+    let t = 0;
+    recTimer = setInterval(() => { $('vStatus').textContent = `recording… ${++t}s`; }, 1000);
+    $('vRec').textContent = '■ Stop'; $('vRec').className = 'btn p';
+  } catch (e) {
+    $('vStatus').textContent = 'Microphone blocked: ' + e.message;
+  }
+};
+$('vPlay').onclick = () => {
+  const src = Store.s.voices[$('vPerson').value]; if (!src) return;
+  $('vAudio').src = src; $('vAudio').play();
+};
+$('vDel').onclick = () => {
+  delete Store.s.voices[$('vPerson').value]; Store.save();
+  Store.audit('voice.delete', $('vPerson').value); $('vPerson').onchange(); render();
+};
+
+/* ============================================================== 07 PREVIEW */
+function renderPreview() {
+  const rows = Schedule.previewToday();
+  const KIND = { briefing: 'Morning briefing', med: 'Medication', appt: 'Appointment', reminisce: 'Reminiscence' };
+  $('dayPreview').innerHTML = rows.length ? rows.map(r => `
+    <div class="row" style="align-items:flex-start;gap:14px">
+      <div style="flex:0 0 62px" class="telemetry"><b>${r.time || '—'}</b><br>${KIND[r.kind]}</div>
+      <div class="voice sm" style="flex:1">${esc(r.text)}</div>
+      <button class="btn sm" data-say="${esc(r.text)}">Hear</button>
+    </div>`).join('') : `<div class="empty">Nothing scheduled. Add medication or an appointment.</div>`;
+  $('dayPreview').querySelectorAll('[data-say]').forEach(b => b.onclick = () => Speech.say(b.dataset.say, { tag: 'preview' }));
+
+  const s = Store.s;
+  const checks = [
+    ['At least three people enrolled with a face', s.people.filter(p => p.descriptor.length === 128).length >= 3],
+    ['Everyone has a shared memory recorded', s.people.length > 0 && s.people.every(p => p.memory)],
+    ['Medication scheduled', s.meds.length > 0],
+    ['At least one appointment', s.appointments.length > 0],
+    ['Places he might get stuck', s.places.length > 0],
+    ['Life story for the afternoon moment', s.lifeStory.length >= 3],
+    ['Consent recorded properly', !!s.consent.donor.signedTs],
+  ];
+  $('readiness').innerHTML = checks.map(([t, ok]) =>
+    `<div class="row" style="padding:6px 0;border-bottom:1px solid var(--rule)">
+       <span class="pill ${ok ? 'g' : 'w'}" style="flex:0 0 62px;text-align:center">${ok ? 'DONE' : 'TO DO'}</span>
+       <span style="font-size:12.5px">${t}</span></div>`).join('');
+}
+
+$('playAll').onclick = async () => {
+  for (const r of Schedule.previewToday()) { await Speech.say(r.text, { tag: 'preview' }); await new Promise(r2 => setTimeout(r2, 350)); }
+};
+
+/* ============================================================== RENDER */
+function listBlock(el, items, fmt, emptyText) {
+  el.innerHTML = items.length ? items.map(fmt).join('') : `<div class="empty">${emptyText}</div>`;
+}
+
+function render() {
+  const s = Store.s;
+
+  $('cPeople').textContent = s.people.length;
+  $('cCal').textContent = s.appointments.length;
+  $('cMeds').textContent = s.meds.length;
+  $('cPlaces').textContent = s.places.length;
+  $('cStory').textContent = s.lifeStory.length;
+  $('cVoice').textContent = Object.keys(s.voices).length;
+  $('pplPill').textContent = `${s.people.length} people`;
+  $('storyPill').textContent = s.lifeStory.length;
+
+  const done = [s.people.length >= 3, s.meds.length > 0, s.appointments.length > 0,
+                s.places.length > 0, s.lifeStory.length >= 3, Object.keys(s.voices).length > 0,
+                !!s.consent.donor.signedTs].filter(Boolean).length;
+  $('pctDone').textContent = Math.round(done / 7 * 100) + '%';
+  document.querySelectorAll('.steps button').forEach(b => {
+    const n = +({ people: s.people.length >= 3, cal: s.appointments.length, meds: s.meds.length,
+                  places: s.places.length, story: s.lifeStory.length >= 3,
+                  voice: Object.keys(s.voices).length }[b.dataset.p] || 0);
+    b.classList.toggle('done', n > 0);
+  });
+
+  listBlock($('pplList'), s.people, p => `
+    <div class="prow">
+      ${p.photo ? `<img class="avatar" src="${p.photo}" alt="">` : `<div class="avatar ph">${Fmt.initials(p.name)}</div>`}
+      <div class="who"><b>${esc(p.name)}</b><span>${esc(p.relation || '—')}</span>
+        <div class="voice sm" style="margin-top:5px;border-left-width:2px">${esc(Cues.fullPrompt(p))}</div></div>
+      <button class="btn sm" data-rm="${p.id}">Remove</button>
+    </div>`, 'Nobody yet. Drop some photos above.');
+  $('pplList').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+    if (confirm('Remove this person and destroy their face descriptor?')) {
+      Store.audit('person.delete', Store.person(b.dataset.rm)?.name || b.dataset.rm);
+      Store.removePerson(b.dataset.rm); render();
+    }
+  });
+
+  $('medTable').innerHTML = `<tr><th>Time</th><th>Medication</th><th></th></tr>` +
+    (s.meds.length ? s.meds.map(m => `<tr>
+      <td class="mono">${m.time}</td>
+      <td><b>${esc(m.name)}</b><div class="tiny">${esc(m.desc)}</div></td>
+      <td style="text-align:right"><button class="btn sm" data-mrm="${m.id}">Remove</button></td>
+    </tr>`).join('') : `<tr><td colspan="3"><div class="empty">No medication yet.</div></td></tr>`);
+  $('medTable').querySelectorAll('[data-mrm]').forEach(b => b.onclick = () => { Store.removeMed(b.dataset.mrm); Store.save(); render(); });
+
+  listBlock($('placeList'), s.places, p => `
+    <div class="prow"><div class="who"><b>${esc(p.label)}</b>
+      <div class="voice sm" style="margin-top:4px">${esc(p.say)}</div></div>
+      <button class="btn sm" data-prm="${p.id}">Remove</button></div>`, 'No places yet.');
+  $('placeList').querySelectorAll('[data-prm]').forEach(b => b.onclick = () => { Store.removePlace(b.dataset.prm); Store.save(); render(); });
+
+  listBlock($('storyList'), s.lifeStory, x => `
+    <div class="prow"><div class="who">
+      <span class="pill">${x.kind}</span> <b style="display:inline">${esc(x.label)}</b>
+      <div class="voice sm" style="margin-top:4px">${esc(x.detail)}</div></div>
+      <button class="btn sm" data-srm="${x.id}">Remove</button></div>`, 'No memories yet.');
+  $('storyList').querySelectorAll('[data-srm]').forEach(b => b.onclick = () => { Store.removeStory(b.dataset.srm); Store.save(); render(); });
+
+  const sel = $('vPerson'), cur = sel.value;
+  sel.innerHTML = `<option value="">— choose —</option>` + s.people.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  if (cur) sel.value = cur;
+
+  listBlock($('voiceList'), Object.keys(s.voices).map(id => ({ id, p: Store.person(id) })).filter(x => x.p),
+    x => `<div class="prow">
+      ${x.p.photo ? `<img class="avatar" src="${x.p.photo}" alt="">` : `<div class="avatar ph">${Fmt.initials(x.p.name)}</div>`}
+      <div class="who"><b>${esc(x.p.name)}</b><span class="telemetry">recorded in a real voice</span></div>
+      <button class="btn sm" data-vp="${x.id}">Play</button></div>`,
+    'No recordings yet. This one is worth doing.');
+  $('voiceList').querySelectorAll('[data-vp]').forEach(b => b.onclick = () => {
+    $('vAudio').src = s.voices[b.dataset.vp]; $('vAudio').play();
+  });
+}
+
+Store.onChange(render);
+$('aDate').value = new Date().toISOString().slice(0, 10);
+render(); renderCal();
+</script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>INGAT — prototype</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23181614'/><circle cx='11' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><circle cx='23' cy='16' r='5.4' fill='none' stroke='%23b4472c' stroke-width='2.4'/><path d='M16.4 16h-.8' stroke='%23b4472c' stroke-width='2.4'/></svg>">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">ING<em>A</em>T</div>
+  <div class="tag">Working prototype &middot; Tech4City 2026</div>
+  <nav>
+    <a href="index.html" class="on">Home</a>
+    <a href="family.html">Setup</a>
+    <a href="glasses.html">Glasses</a>
+    <a href="care.html">Caregiver</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+  <div style="max-width:680px;margin-bottom:20px">
+    <h1 style="font-size:31px">Smart glasses that remember for him &mdash; and turn the forgetting into a measurement.</h1>
+    <p class="lede">
+      The <b>glasses</b> speak into his ear: who just walked in, the shared memory
+      that makes the greeting real, the 1pm pill. The <b>dashboard</b> watches one
+      thing nobody else measures &mdash; how much help he needed, and whether that
+      is changing.
+    </p>
+  </div>
+
+  <!-- ====================================================== START HERE -->
+  <div class="card" style="margin-bottom:20px;border-color:var(--accent)">
+    <div class="hd" style="background:var(--accent)">
+      <h2 style="color:#fff">Never used this before? Do these three things, in order.</h2>
+      <span class="right" style="color:#f6ded6;font-size:11px">about 4 minutes</span>
+    </div>
+    <div class="bd">
+      <div class="grid g-3" style="gap:20px">
+
+        <div>
+          <div class="row" style="gap:9px;margin-bottom:7px">
+            <span style="background:var(--ink);color:#fff;width:23px;height:23px;border-radius:50%;display:grid;place-content:center;font-size:11px;font-weight:700">1</span>
+            <b style="font-size:13.5px">Say yes on his behalf</b>
+          </div>
+          <p class="sub" style="margin-bottom:9px">
+            Open the <b>Trust Centre</b>, type a name, click <b>He agreed</b>.
+            The camera will not recognise anyone until you do &mdash; that is on
+            purpose, not a bug.
+          </p>
+          <a class="btn p sm" href="privacy.html">Open Trust Centre</a>
+        </div>
+
+        <div>
+          <div class="row" style="gap:9px;margin-bottom:7px">
+            <span style="background:var(--ink);color:#fff;width:23px;height:23px;border-radius:50%;display:grid;place-content:center;font-size:11px;font-weight:700">2</span>
+            <b style="font-size:13.5px">Put a face in</b>
+          </div>
+          <p class="sub" style="margin-bottom:9px">
+            Easiest: use the camera panel below &mdash; enrol <b>your own face</b>
+            as &ldquo;Mei Ling, your daughter&rdquo;. Or drop family photos into the
+            <b>Setup Studio</b>.
+          </p>
+          <a class="btn sm" href="family.html">Open Setup Studio</a>
+        </div>
+
+        <div>
+          <div class="row" style="gap:9px;margin-bottom:7px">
+            <span style="background:var(--ink);color:#fff;width:23px;height:23px;border-radius:50%;display:grid;place-content:center;font-size:11px;font-weight:700">3</span>
+            <b style="font-size:13.5px">Look at the camera</b>
+          </div>
+          <p class="sub" style="margin-bottom:9px">
+            Open <b>Glasses</b>, click <b>Start glasses</b>, look into the camera.
+            It says your name out loud. Press <b>1</b> to repeat it without moving.
+          </p>
+          <a class="btn sm" href="glasses.html">Open Glasses</a>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top:16px">
+        <b>In one sentence:</b> consent first, then a face, then look at the camera.
+        Everything else on this page is detail you can read later.
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ setup -->
+  <div class="grid g-2" style="margin-bottom:16px">
+
+    <div class="card">
+      <div class="hd"><h2>1 &nbsp;Enrol a face from the camera</h2>
+        <span class="right pill a">fastest path to a live demo</span></div>
+      <div class="bd">
+        <div class="stage" style="aspect-ratio:16/10;margin-bottom:12px">
+          <video id="v" playsinline muted></video>
+          <div class="placeholder" id="vph">
+            <div style="color:#c9c1b9;font-size:13px;font-weight:600">Camera off</div>
+            <div class="mono" id="vprog" style="font-size:11px;color:#7d756e"></div>
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn p" id="camOn">Open camera</button>
+          <span class="tiny" id="camNote">Models load from ./models &mdash; no network.</span>
+        </div>
+        <label class="fld"><span>Name</span><input type="text" id="eName" placeholder="Mei Ling"></label>
+        <label class="fld"><span>Relationship</span><input type="text" id="eRel" placeholder="Your daughter"></label>
+        <label class="fld"><span>One shared memory</span>
+          <input type="text" id="eMem" placeholder="She came last Sunday and brought kaya toast"></label>
+        <button class="btn k wide" id="cap" disabled>Capture 4 samples &amp; enrol</button>
+        <p class="tiny" style="margin:8px 0 0">
+          Enrol your own face, or a teammate&rsquo;s. Four samples are averaged into one
+          128-float descriptor. That vector is the <i>only</i> thing stored &mdash; no
+          frames, no video.
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>2 &nbsp;Run the demo</h2></div>
+        <div class="bd">
+          <p class="sub">Four surfaces. Open the glasses and the dashboard in two tabs &mdash; they stay in sync.</p>
+          <div class="row" style="margin-bottom:12px">
+            <a class="btn p" href="family.html">Setup Studio</a>
+            <a class="btn" href="glasses.html">Glasses view</a>
+            <a class="btn" href="care.html">Caregiver dashboard</a>
+            <a class="btn" href="privacy.html">Trust Centre</a>
+          </div>
+          <div class="note w" style="margin-bottom:12px">
+            <b>Recognition is gated on consent.</b> Until you record it in the
+            Trust Centre the camera will not match anyone &mdash; reminders still run,
+            because they are a separate purpose. That is deliberate; it is the
+            PDPA obligation implemented rather than described.
+          </div>
+          <table>
+            <tr><td style="width:34%"><b>90-second run</b></td>
+                <td>Start glasses &rarr; a known face appears &rarr; full prompt &rarr;
+                    switch to <b>partial cue</b> &rarr; he says the name &rarr; ladder advances &rarr;
+                    unknown face &rarr; “someone is here” &rarr; open the dashboard, show the index.</td></tr>
+            <tr><td><b>No camera?</b></td>
+                <td>Keys <b>1&ndash;9</b> in the glasses view simulate that person walking in.
+                    Everything downstream is real.</td></tr>
+            <tr><td><b>Show the moment</b></td>
+                <td>Toggle a person&rsquo;s ladder in the dashboard, then trigger them again.
+                    Week&nbsp;1 versus week&nbsp;5 &mdash; same person, shrinking help.</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><h2>3 &nbsp;Sample data</h2>
+          <button class="btn sm right" id="reset">Reset everything</button></div>
+        <div class="bd">
+          <p class="sub">
+            Loads a family with names, relationships and memories, plus ten weeks of
+            seeded index history so the escalation flag has something to fire on.
+            <b>No face descriptors</b> &mdash; enrol real faces in panel 1, or drive it
+            with keys 1&ndash;9.
+          </p>
+          <div class="row">
+            <button class="btn g" id="seed">Load sample family</button>
+            <span class="tiny" id="seedNote"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================= what's real -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="hd"><h2>What is real and what is simulated</h2>
+      <span class="right tiny">Say this out loud on stage. Judges reward it.</span></div>
+    <div class="bd tight">
+      <table>
+        <tr><th style="width:30%">Component</th><th style="width:14%">Status</th><th>Note</th></tr>
+        <tr><td><b>Face detection &amp; 128-d embedding</b></td><td><span class="pill g">Real</span></td>
+            <td>face-api.js, TinyFaceDetector + FaceRecognitionNet, running entirely in-browser. Weights vendored locally (6.5 MB) &mdash; no CDN, no network at run time.</td></tr>
+        <tr><td><b>Enrolment-only matching</b></td><td><span class="pill g">Real</span></td>
+            <td>Euclidean distance against consented descriptors, threshold 0.52. Non-enrolled descriptors go out of scope with the frame &mdash; see the comment block in <span class="mono">js/vision.js</span>.</td></tr>
+        <tr><td><b>&ldquo;Someone is here&rdquo;</b></td><td><span class="pill g">Real</span></td>
+            <td>Below threshold we never guess. A wrong name is worse than no name.</td></tr>
+        <tr><td><b>Spoken prompts, EN + Mandarin</b></td><td><span class="pill g">Real</span></td>
+            <td>Web Speech API, rate 0.82 for presbycusis. Voice availability depends on the OS.</td></tr>
+        <tr><td><b>Vanishing-cue ladder</b></td><td><span class="pill g">Real</span></td>
+            <td>Full state machine: 3 unaided retrievals advance, 2 failures regress, interval &times;1.6 / &divide;2. Persisted per person.</td></tr>
+        <tr><td><b>Retrieval detection</b></td><td><span class="pill g">Real</span></td>
+            <td>He says the name; browser speech recognition catches it. Manual <b>G</b>/<b>N</b> keys always work as a fallback so the demo cannot fail.</td></tr>
+        <tr><td><b>Cognitive Trajectory Index</b></td><td><span class="pill w">Real maths, seeded history</span></td>
+            <td>Live sub-scores are computed from this session&rsquo;s actual events. Weeks 1&ndash;10 are seeded and <b>labelled as seeded in the UI</b>. Weights are a first pass, not a validated instrument.</td></tr>
+        <tr><td><b>Wear-time &amp; idle power-down</b></td><td><span class="pill w">Real, proxied</span></td>
+            <td>Driven by face-detection activity rather than an IMU, because a browser has no accelerometer here.</td></tr>
+        <tr><td><b>Scheduler</b> &mdash; briefing, medication, appointments, reminiscence</td><td><span class="pill g">Real</span></td>
+            <td><span class="mono">js/schedule.js</span>. Fires on real clock time, once per key per day so a reload cannot re-nag. Medication re-prompts once after 15 min, then escalates to the caregiver &mdash; once, not repeatedly.</td></tr>
+        <tr><td><b>Consent gate</b></td><td><span class="pill g">Real</span></td>
+            <td>Recognition will not run without recorded consent and active assent. Reminders are a separate purpose and keep working &mdash; that is the PDPA Purpose Limitation obligation in code, not in a policy document.</td></tr>
+        <tr><td><b>Data export, erasure, audit trail</b></td><td><span class="pill g">Real</span></td>
+            <td>Export downloads an actual file. Erasure actually destroys descriptors. The audit log is append-only.</td></tr>
+        <tr><td><b>Recorded family voice</b></td><td><span class="pill g">Real</span></td>
+            <td>MediaRecorder, stored on-device, played instead of TTS when present. Falls back silently.</td></tr>
+        <tr><td><b>Place prompts</b></td><td><span class="pill w">Real, manually triggered</span></td>
+            <td>Fires from buttons in the glasses view. In the product these are GPS geofences; a browser tab is the wrong place to prove that.</td></tr>
+        <tr><td><b>Presbycusis EQ, whisper mode</b></td><td><span class="pill r">Not simulated</span></td>
+            <td>Audiogram-shaped EQ and consonant emphasis are firmware-level. The browser exposes rate and pitch only.</td></tr>
+        <tr><td><b>On-glasses execution</b></td><td><span class="pill r">Roadmap</span></td>
+            <td>Eyewear 2 has no camera; AI Glasses is China-only with no public SDK. Phase 1 pairs Eyewear 2 audio with the phone camera &mdash; which is what this prototype models.</td></tr>
+        <tr><td><b>Huawei Cloud MaaS</b></td><td><span class="pill r">Coded, not keyed</span></td>
+            <td>Prompt generation and the weekly summary are written against the Singapore-region endpoint in <span class="mono">js/maas.js</span>. Falls back to local templates without credentials.</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Why this runs offline.</b> Every model weight, script and stylesheet is on
+    disk. A competition venue&rsquo;s wifi cannot break the demo, and no face data
+    leaves the machine &mdash; which is the same argument as the privacy slide,
+    demonstrated rather than asserted.
+  </div>
+
+</div>
+
+<script src="js/face-api.min.js"></script>
+<script src="js/store.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/cues.js"></script>
+<script src="js/cti.js"></script>
+<script>
+Store.load();
+const $ = id => document.getElementById(id);
+
+$('camOn').onclick = async () => {
+  const b = $('camOn'); b.disabled = true;
+  try {
+    $('vprog').textContent = 'loading models…';
+    await Vision.loadModels((n, i, t) => { $('vprog').textContent = `loading ${n} (${i + 1}/${t})…`; });
+    $('vprog').textContent = 'opening camera…';
+    await Vision.startCamera($('v'), null);
+    $('vph').style.display = 'none';
+    $('cap').disabled = false;
+    $('camNote').textContent = 'Camera live. Models loaded from disk.';
+  } catch (e) {
+    $('vprog').textContent = 'Failed: ' + e.message;
+    $('camNote').textContent = 'Serve over http://localhost (see README) — browsers block the camera on file://';
+    b.disabled = false;
+  }
+};
+
+$('cap').onclick = async () => {
+  const name = $('eName').value.trim();
+  if (!name) { alert('Give them a name first.'); return; }
+  const b = $('cap'); b.disabled = true;
+  const res = await Vision.enrol(4, (n, t) => { b.textContent = `Capturing ${n}/${t}…`; });
+  if (!res) { b.textContent = 'No face detected — try again'; b.disabled = false; return; }
+  Store.addPerson({
+    name,
+    relation: $('eRel').value.trim(),
+    memory: $('eMem').value.trim(),
+    photo: res.photo,
+    descriptor: res.descriptor,
+  });
+  b.textContent = `Enrolled ${name} (${res.samples} samples)`;
+  $('eName').value = $('eRel').value = $('eMem').value = '';
+  setTimeout(() => { b.textContent = 'Capture 4 samples & enrol'; b.disabled = false; }, 1800);
+};
+
+$('seed').onclick = () => {
+  const fam = [
+    ['Mei Ling', 'Your daughter', 'She came last Sunday and brought kaya toast'],
+    ['Wei Jie',  'Your son',      'He fixed your fan last month and stayed for dinner'],
+    ['Siew Kim', 'Your wife',     'You met her at the textile factory in Chinatown'],
+    ['Dr Rahim', 'Your doctor at the polyclinic', 'He checks your blood pressure every third Tuesday'],
+    ['Fatimah',  'Your helper',   'She cooks your porridge in the morning'],
+  ];
+  fam.forEach(([name, relation, memory]) => {
+    if (!Store.s.people.some(p => p.name === name)) {
+      Store.addPerson({ name, relation, memory, photo: null, descriptor: null });
+    }
+  });
+  $('seedNote').textContent = `${Store.s.people.length} people in the library. Use keys 1–9 in the glasses view.`;
+};
+
+$('reset').onclick = () => {
+  if (confirm('Clear all people, events and history, and reload the seeded weeks?')) {
+    Store.reset();
+    $('seedNote').textContent = 'Reset.';
+  }
+};
+
+$('seedNote').textContent = Store.s.people.length
+  ? `${Store.s.people.length} people already in the library.` : '';
+</script>
+</body>
+</html>
