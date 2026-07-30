@@ -311,6 +311,107 @@ const Memory = {
     return t.charAt(0).toUpperCase() + t.slice(1);
   },
 
+  /* ==========================================================================
+     HOLDING THE THREAD — the live half of conversation memory
+
+     Everything above is about AFTER a conversation. This is about DURING one.
+
+     Losing the thread mid-sentence is one of the most humiliating symptoms of
+     early dementia. You are talking to your son, you stop, and the sentence is
+     simply gone — along with what you were both talking about thirty seconds
+     ago. The usual repair is to ask him, which makes the lapse public, so most
+     people just fall silent instead. That withdrawal is how conversation stops
+     being worth the risk, and it is a large part of how social isolation
+     actually begins.
+
+     A device can repair this privately. He taps once and hears, in his ear
+     only, what the conversation is about and what he was saying. Nobody else
+     in the room knows it happened.
+
+     This runs off the SAME buffer as fact extraction — nothing extra is
+     captured, nothing extra is stored, and the buffer is still destroyed when
+     the conversation ends.
+     ========================================================================*/
+
+  /** The gist of the current conversation: topic, plus his last thought. */
+  thread() {
+    this._prune();
+    if (!this._buf.length) return null;
+    const recent = this._buf.slice(-8).map(b => b.text);
+    return {
+      topic: this._topic(recent),
+      lastSaid: this._lastSubstantive(recent),
+      person: this.activePersonId ? (Store.person(this.activePersonId) || {}).name : null,
+      fragments: this._buf.length,
+    };
+  },
+
+  /**
+   * "What were we talking about?" — spoken into his ear, mid-conversation.
+   * Deliberately short. He is standing in front of someone waiting for him to
+   * finish a sentence; a paragraph would be worse than silence.
+   */
+  async remindThread() {
+    const t = this.thread();
+    const lang = Store.s.patient.language;
+    if (!t || (!t.topic && !t.lastSaid)) {
+      await Speech.say('I did not catch the last part.', { lang, tag: 'thread' });
+      return null;
+    }
+    const bits = [];
+    const topic = this._article(t.topic);
+    if (t.person && topic) bits.push(`You and ${t.person} are talking about ${topic}.`);
+    else if (topic) bits.push(`You are talking about ${topic}.`);
+    if (t.lastSaid) bits.push(`You were saying: ${t.lastSaid}.`);
+    const text = bits.join(' ');
+    // Log THAT it happened, never WHAT was said. The event log is persisted
+    // and exported; putting the reconstructed sentence in it would write his
+    // conversation to disk through the back door, which is precisely what the
+    // rest of this file exists to prevent. How often he loses the thread is
+    // the clinical signal. What he was saying is nobody's business.
+    Store.log(EV.THREAD_HELD);
+    await Speech.say(text, { lang, tag: 'thread' });
+    return t;
+  },
+
+  /**
+   * "about roof" is what a machine says. "about the roof" is what a person
+   * says, and this is going into the ear of someone who is already unsure
+   * whether he is following the conversation — it has to sound like a person.
+   */
+  _article(topic) {
+    if (!topic) return null;
+    if (/^(the|a|an|his|her|your|my|our|their)\b/i.test(topic)) return topic;
+    if (/\band\b/.test(topic)) return topic;          // "roof and contractor"
+    if (/^[A-Z]/.test(topic)) return topic;           // a name
+    return 'the ' + topic;
+  },
+
+  /** The noun the conversation keeps returning to. */
+  _topic(lines) {
+    const counts = new Map();
+    lines.forEach(l => this._contentWords(l).forEach(w => {
+      counts.set(w, (counts.get(w) || 0) + 1);
+    }));
+    if (!counts.size) return null;
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    // A word said once is not a topic; it is just a word.
+    const top = ranked.filter(([, n]) => n >= 2).slice(0, 2).map(([w]) => w);
+    if (!top.length) return ranked.length ? ranked[0][0] : null;
+    return top.join(' and ');
+  },
+
+  /** His last remark that carried any content, trimmed to something sayable. */
+  _lastSubstantive(lines) {
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const words = lines[i].trim().split(/\s+/);
+      if (words.length < 4) continue;                   // "mm", "yes", "I see"
+      if (this._contentWords(lines[i]).length < 2) continue;
+      return this._trimToClause(lines[i].trim());
+    }
+    return null;
+  },
+
   /** For the UI: how much is being held right now, and for how long. */
   bufferState() {
     this._prune();

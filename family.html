@@ -45,8 +45,10 @@
     <button data-p="places"><span class="n">04</span><span class="t">Places</span><span class="c" id="cPlaces">0</span></button>
     <button data-p="story"><span class="n">05</span><span class="t">Life story</span><span class="c" id="cStory">0</span></button>
     <button data-p="voice"><span class="n">06</span><span class="t">Your voice</span><span class="c" id="cVoice">0</span></button>
-    <button data-p="things"><span class="n">07</span><span class="t">Things &amp; home</span><span class="c" id="cThings">0</span></button>
-    <button data-p="preview"><span class="n">08</span><span class="t">What he hears</span><span class="c">&rarr;</span></button>
+    <button data-p="plan"><span class="n">07</span><span class="t">His day</span><span class="c" id="cPlan">0</span></button>
+    <button data-p="things"><span class="n">08</span><span class="t">Things &amp; home</span><span class="c" id="cThings">0</span></button>
+    <button data-p="tags"><span class="n">09</span><span class="t">Trackers</span><span class="c" id="cTags">0</span></button>
+    <button data-p="preview"><span class="n">10</span><span class="t">What he hears</span><span class="c">&rarr;</span></button>
   </div>
 
   <!-- ================================================================ 01 -->
@@ -274,6 +276,63 @@
   </section>
 
   <!-- ================================================================ 07 -->
+  <section class="pane" id="p-plan">
+    <div class="grid g-care">
+      <div class="card">
+        <div class="hd"><h2>His day</h2>
+          <span class="right telemetry" id="planSummary"></span></div>
+        <div class="bd">
+          <p class="sub" style="margin-top:0">
+            Not a to-do list &mdash; a to-do list has to be <i>remembered</i>, which is the
+            whole problem. Each of these is spoken at the moment it matters, once, and
+            never again if he has already done it.
+          </p>
+          <div class="day" id="dayLine"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="hd"><h2 id="planFormTitle">Add to his day</h2></div>
+          <div class="bd">
+            <div class="row" style="gap:8px">
+              <label class="fld" style="flex:0 0 100px"><span>Time</span>
+                <input type="time" id="plTime" value="10:00"></label>
+              <label class="fld" style="flex:1"><span>What</span>
+                <input type="text" id="plTitle" placeholder="Water the plants"></label>
+            </div>
+            <label class="fld"><span>Say a bit more &mdash; in your words, not instructions</span>
+              <textarea id="plDetail" placeholder="The ones on the corridor, not the balcony."></textarea></label>
+            <label class="fld"><span>Kind</span>
+              <div class="chipbar" id="planKinds">
+                <button class="chip on" data-k="task">Task</button>
+                <button class="chip" data-k="meal">Meal</button>
+                <button class="chip" data-k="move">Moving about</button>
+                <button class="chip" data-k="social">People</button>
+                <button class="chip" data-k="rest">Rest</button>
+              </div>
+            </label>
+            <button class="btn p wide" id="plAdd2">Add to his day</button>
+            <div class="hr"></div>
+            <div class="say-preview" id="planPreview"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd"><h2>A good day has gaps in it</h2></div>
+          <div class="bd">
+            <p class="tiny" style="margin:0">
+              Four or five things is plenty. A packed day is not a supportive day &mdash;
+              it is a day full of moments to fail at, and every prompt he does not act on
+              teaches him that the glasses are noise. If in doubt, take one out.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 08 -->
   <section class="pane" id="p-things">
     <div class="grid g-2">
       <div class="card">
@@ -339,7 +398,64 @@
     </div>
   </section>
 
-  <!-- ================================================================ 08 -->
+  <!-- ================================================================ 09 -->
+  <section class="pane" id="p-tags">
+    <div class="grid g-care">
+      <div class="card">
+        <div class="hd"><h2>Trackers</h2>
+          <span class="right pill" id="btStatus">checking&hellip;</span></div>
+        <div class="bd">
+          <p class="sub" style="margin-top:0">
+            Clip a Bluetooth tag to the things he loses. When he asks
+            <i>&ldquo;where is my wallet?&rdquo;</i> the glasses <b>ring the tag</b> and tell
+            him where to listen. A sound finds a wallet under a cushion faster than any
+            description.
+          </p>
+          <div class="tags" id="tagGrid"></div>
+          <div id="tagMsg" class="telemetry" style="margin-top:11px"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="hd"><h2>Add a tracker</h2></div>
+          <div class="bd">
+            <label class="fld"><span>What is it on</span>
+              <input type="text" id="tName" placeholder="wallet"></label>
+            <label class="fld"><span>Where it usually lives</span>
+              <input type="text" id="tHome" placeholder="the drawer by the door"></label>
+            <button class="btn p wide" id="tPair">Pair a Bluetooth tag</button>
+            <p class="tiny" style="margin:9px 0 0">
+              Your browser will show its own list of nearby devices &mdash; we never see
+              anything you do not choose. Pairing has to be started by a tap, every time;
+              a web page is not allowed to scan quietly in the background, which is
+              exactly as it should be.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd"><h2>What is honestly possible</h2></div>
+          <div class="bd tight">
+            <table>
+              <tr><td style="width:52%">Ring a real BLE tag</td><td><span class="pill g">Yes</span></td></tr>
+              <tr><td>Chrome / Edge, Android, Windows, macOS</td><td><span class="pill g">Yes</span></td></tr>
+              <tr><td>Safari, iPhone, iPad</td><td><span class="pill r">No API</span></td></tr>
+              <tr><td>AirTag or Tile</td><td><span class="pill r">Locked</span></td></tr>
+              <tr><td>Background scanning</td><td><span class="pill r">Not allowed</span></td></tr>
+            </table>
+            <p class="tiny" style="margin:11px 15px 14px">
+              On the real glasses this is native Bluetooth and none of these limits apply.
+              In a browser we say plainly when a ring is simulated &mdash; a fake success
+              you cannot tell from a real one is the worst thing a demo can contain.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 10 -->
   <section class="pane" id="p-preview">
     <div class="card" style="margin-bottom:16px">
       <div class="hd"><h2>His day, as he will hear it</h2>
@@ -383,6 +499,7 @@
 <script src="js/maas.js"></script>
 <script src="js/recall.js"></script>
 <script src="js/geo.js"></script>
+<script src="js/tags.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 Store.load(); Store.listen(); Speech.init();
@@ -757,7 +874,136 @@ $('vDel').onclick = () => {
   Store.audit('voice.delete', $('vPerson').value); $('vPerson').onchange(); render();
 };
 
-/* ============================================================== 07 THINGS */
+/* ============================================================== 07 HIS DAY */
+let planKind = 'task';
+$('planKinds').onclick = e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  $('planKinds').querySelectorAll('.chip').forEach(x => x.classList.remove('on'));
+  c.classList.add('on');
+  planKind = c.dataset.k;
+};
+function planPrev() {
+  const t = $('plTitle').value.trim(); if (!t) { $('planPreview').innerHTML = ''; return; }
+  const d = $('plDetail').value.trim();
+  sayPreview($('planPreview'), d ? `${t}. ${d}` : `${t}.`);
+}
+['plTitle','plDetail'].forEach(i => $(i).oninput = planPrev);
+$('plAdd2').onclick = () => {
+  const title = $('plTitle').value.trim();
+  if (!title) { $('plTitle').focus(); return; }
+  Store.addPlan({ time: $('plTime').value || '10:00', title,
+                  detail: $('plDetail').value.trim(), kind: planKind });
+  $('plTitle').value = $('plDetail').value = ''; $('planPreview').innerHTML = '';
+  render();
+};
+
+const KIND_GLYPH = { meal: '\u{1F35A}', move: '\u{1F6B6}', task: '\u{2714}', social: '\u{1F465}', rest: '\u{1F634}' };
+
+function renderDay() {
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const toM = t => { const [h, m] = (t || '00:00').split(':').map(Number); return h * 60 + m; };
+  const items = Store.planToday();
+
+  // which item is "now" — the most recent one that has already come round
+  let nowId = null;
+  items.forEach(p => { if (toM(p.time) <= mins) nowId = p.id; });
+
+  $('dayLine').innerHTML = items.length ? items.map(p => {
+    const done = Store.planDoneToday(p);
+    return `<div class="slot ${p.id === nowId ? 'now' : ''} ${done ? 'done' : ''}">
+      <span class="at">${esc(p.time)}</span>
+      <span class="knot"></span>
+      <div class="card2">
+        <span class="kind ${p.kind || 'task'}">${esc(p.kind || 'task')}</span>
+        <h4>${esc(p.title)}</h4>
+        ${p.detail ? `<p>${esc(p.detail)}</p>` : ''}
+        <div class="acts">
+          <button class="btn sm" data-say="${esc(p.detail ? p.title + '. ' + p.detail : p.title + '.')}">Hear it</button>
+          <button class="btn sm" data-pdone="${p.id}">${done ? 'Not done after all' : 'Mark done'}</button>
+          <button class="btn sm" data-prm="${p.id}">Remove</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty">Nothing planned yet. Four or five things is plenty.</div>`;
+
+  $('dayLine').querySelectorAll('[data-say]').forEach(b => b.onclick = () => Speech.say(b.dataset.say, { tag: 'plan' }));
+  $('dayLine').querySelectorAll('[data-pdone]').forEach(b => b.onclick = () => {
+    const p = Store.s.plan.find(x => x.id === b.dataset.pdone);
+    if (Store.planDoneToday(p)) { p.done = null; Store.save(); } else Store.markPlanDone(p.id);
+    render();
+  });
+  $('dayLine').querySelectorAll('[data-prm]').forEach(b => b.onclick = () => {
+    Store.removePlan(b.dataset.prm); render();
+  });
+
+  const doneN = items.filter(p => Store.planDoneToday(p)).length;
+  $('planSummary').textContent = items.length ? `${doneN} of ${items.length} done today` : '';
+}
+
+/* ============================================================== 09 TRACKERS */
+async function renderTags() {
+  const ok = await Tags.ready();
+  $('btStatus').textContent = Tags.available ? (ok ? 'Bluetooth ready' : 'Bluetooth off') : 'no Web Bluetooth';
+  $('btStatus').className = 'right pill ' + (Tags.available && ok ? 'g' : 'w');
+
+  const tiles = Store.s.tags.map(t => {
+    const live = Tags.connected(t.id);
+    return `<div class="tag ${live ? 'live' : ''}" id="tile-${t.id}">
+      <button class="x" data-trm="${t.id}" title="Remove">&times;</button>
+      <div class="glyph">${live ? '\u{1F514}' : '\u{1F4CD}'}</div>
+      <b>${esc(t.name)}</b>
+      <span>${live ? 'connected' : 'paired earlier'}</span>
+      <button class="btn sm" data-ring="${t.id}" style="margin-top:8px;width:100%">Ring it</button>
+    </div>`;
+  }).join('');
+
+  $('tagGrid').innerHTML = tiles
+    + `<div class="tag add" id="tileAdd"><div><div class="glyph">+</div><b>Add a tracker</b></div></div>`;
+
+  $('tileAdd').onclick = () => { $('tName').focus(); document.querySelector('#p-tags .g-care > div:last-child').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+  $('tagGrid').querySelectorAll('[data-trm]').forEach(b => b.onclick = () => {
+    Store.removeTag(b.dataset.trm); render();
+  });
+  $('tagGrid').querySelectorAll('[data-ring]').forEach(b => b.onclick = async () => {
+    const t = Store.s.tags.find(x => x.id === b.dataset.ring);
+    const tile = $('tile-' + t.id);
+    tile.classList.add('ringing');
+    const res = await Tags.ring(t);
+    setTimeout(() => tile.classList.remove('ringing'), 1800);
+    $('tagMsg').innerHTML = res.rang
+      ? (res.real
+          ? `<span style="color:var(--green)"><b>${esc(t.name)} is ringing.</b> Follow the sound.</span>`
+          : `<span style="color:var(--amber)"><b>Simulated ring.</b> ${esc(res.reason)}</span>`)
+      : `<span style="color:var(--red)">${esc(res.reason)}</span>`;
+  });
+}
+
+$('tPair').onclick = async () => {
+  const name = $('tName').value.trim();
+  if (!name) { $('tName').focus(); return; }
+  const b = $('tPair'); b.disabled = true; b.textContent = 'Choose a device…';
+  try {
+    const d = await Tags.pair();
+    Store.addTag({ name, home: $('tHome').value.trim(), deviceId: d.deviceId,
+                   deviceName: d.deviceName, paired: true });
+    const added = Store.s.tags[Store.s.tags.length - 1];
+    Tags.remember(added.id, d._device);
+    // a tracked thing is also a findable thing
+    if (!Store.findObject(name) && $('tHome').value.trim()) {
+      Store.addObject({ name, home: $('tHome').value.trim(), tagged: true });
+    }
+    Store.save();
+    $('tagMsg').innerHTML = `<span style="color:var(--green)">Paired <b>${esc(d.deviceName)}</b> as ${esc(name)}.</span>`;
+    $('tName').value = $('tHome').value = '';
+  } catch (e) {
+    $('tagMsg').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`;
+  }
+  b.disabled = false; b.textContent = 'Pair a Bluetooth tag';
+  render();
+};
+
+/* ============================================================== 08 THINGS */
 function objPrev() {
   const n = $('oName').value.trim(); if (!n) { $('objPreview').innerHTML = ''; return; }
   sayPreview($('objPreview'), `Your ${n} lives in ${$('oHome').value.trim() || '…'}.`);
@@ -865,12 +1111,14 @@ function render() {
 
   const done = [s.people.length >= 3, s.meds.length > 0, s.appointments.length > 0,
                 s.places.length > 0, s.lifeStory.length >= 3, Object.keys(s.voices).length > 0,
+                s.plan.length > 0, s.objects.length > 0, s.tags.length > 0,
                 !!s.consent.donor.signedTs].filter(Boolean).length;
-  $('pctDone').textContent = Math.round(done / 7 * 100) + '%';
+  $('pctDone').textContent = Math.round(done / 10 * 100) + '%';
   document.querySelectorAll('.steps button').forEach(b => {
     const n = +({ people: s.people.length >= 3, cal: s.appointments.length, meds: s.meds.length,
                   places: s.places.length, story: s.lifeStory.length >= 3,
-                  voice: Object.keys(s.voices).length }[b.dataset.p] || 0);
+                  voice: Object.keys(s.voices).length, plan: s.plan.length,
+                  things: s.objects.length, tags: s.tags.length }[b.dataset.p] || 0);
     b.classList.toggle('done', n > 0);
   });
 
@@ -923,6 +1171,12 @@ function render() {
       <div class="voice sm" style="margin-top:4px">${esc(x.detail)}</div></div>
       <button class="btn sm" data-srm="${x.id}">Remove</button></div>`, 'No memories yet.');
   $('storyList').querySelectorAll('[data-srm]').forEach(b => b.onclick = () => { Store.removeStory(b.dataset.srm); Store.save(); render(); });
+
+  /* day + trackers */
+  $('cPlan').textContent = s.plan.length;
+  $('cTags').textContent = s.tags.length;
+  renderDay();
+  renderTags();
 
   /* things */
   $('cThings').textContent = s.objects.length;

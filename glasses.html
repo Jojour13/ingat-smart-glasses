@@ -126,6 +126,7 @@
           <div class="hr" style="margin:12px 0"></div>
           <div class="telemetry" style="margin-bottom:6px">Ask the glasses &mdash; he speaks, it answers</div>
           <div class="row" style="margin-bottom:10px">
+            <button class="btn k" id="btnThread" title="Mid-conversation: what were we talking about?">&ldquo;What was I saying?&rdquo;</button>
             <button class="btn" id="btnAsk">&ldquo;Where is my&hellip;?&rdquo;</button>
             <button class="btn" id="btnWayHome">&ldquo;Which way is home?&rdquo;</button>
             <button class="btn" id="btnPractice" title="Run the next thing due for retrieval practice">Practice next</button>
@@ -215,6 +216,7 @@
 <script src="js/recall.js"></script>
 <script src="js/memory.js"></script>
 <script src="js/geo.js"></script>
+<script src="js/tags.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 /* ============================================================================
@@ -307,7 +309,8 @@ Cues.onEvent = (kind, d) => {
 
 /* ---------------------------------------------------- scheduler hooks */
 Schedule.onFire = (kind, d) => {
-  const LBL = { briefing: 'MORNING BRIEFING', med: 'MEDICATION', appt: 'APPOINTMENT', reminisce: 'REMINISCENCE' };
+  const LBL = { briefing: 'MORNING BRIEFING', med: 'MEDICATION', appt: 'APPOINTMENT',
+                reminisce: 'REMINISCENCE', plan: 'HIS DAY' };
   logLine(`${LBL[kind] || kind.toUpperCase()} — ${d.text}`, 'hi');
   render();
 };
@@ -558,10 +561,27 @@ $('btnPractice').onclick = async () => {
   await Recall.next();
 };
 
+/* "What was I saying?" — the repair for losing the thread mid-conversation.
+   Private, in his ear, so the lapse never becomes public. This is the thing
+   that stops people withdrawing from conversation altogether. */
+$('btnThread').onclick = async () => {
+  if (!Memory.permitted) {
+    logLine('Thread help needs conversation consent — grant it in the Trust Centre.', 'bad');
+    return;
+  }
+  const t = Memory.thread();
+  if (!t) {
+    logLine('Nothing in the buffer yet — the glasses need to have heard some of the conversation.', '');
+  } else {
+    logLine(`THREAD — topic "${t.topic || '?'}" · ${t.fragments} fragments held`, 'hi');
+  }
+  await Memory.remindThread();
+};
+
 /* "Where is my wallet?" — a lookup, not a test. If he is asking, he has
    already tried to remember and failed; testing him now would be unkind. */
 $('btnAsk').onclick = async () => {
-  const objs = Store.s.objects.map(o => o.name);
+  const objs = [...Store.s.objects.map(o => o.name), ...Store.s.tags.map(t => t.name)];
   if (!objs.length) { logLine('No objects set up. Add them in Setup.', ''); return; }
   logLine('Listening for "where is my ..." — say it, or tap an object below.', 'hi');
   const res = await Listener.listen(objs, 4000, Store.s.patient.language);
@@ -659,18 +679,18 @@ function render() {
   const ppl = Store.s.people;
   $('pplCount').textContent = `${ppl.length} enrolled`;
 
-  // objects — tap to ask where one is, exactly as the voice query would
-  $('objChips').innerHTML = Store.s.objects.length
-    ? Store.s.objects.map(o => {
-        const fresh = o.lastSeen && (Date.now() - o.lastSeen.ts) < 36 * 3600 * 1000;
-        return `<button class="chip" data-obj="${o.id}" title="${fresh ? 'last seen: ' + o.lastSeen.place : 'lives in ' + o.home}">
-                  where is my ${o.name}?${fresh ? ' <b style="color:var(--green)">&bull;</b>' : ''}
-                </button>`;
-      }).join('')
-    : `<span class="tiny">No objects set. Add them in <a href="family.html">Setup</a>.</span>`;
-  $('objChips').querySelectorAll('[data-obj]').forEach(b => b.onclick = async () => {
-    const o = Store.s.objects.find(x => x.id === b.dataset.obj);
-    if (o && !Cues._busy) await Recall.whereIs(o.name);
+  // objects and tags — tap to ask, exactly as the voice query would.
+  // A tagged thing shows a bell, because asking will make it beep.
+  const askables = [
+    ...Store.s.tags.map(t => ({ name: t.name, tagged: true })),
+    ...Store.s.objects.filter(o => !Store.findTag(o.name)).map(o => ({ name: o.name, tagged: false })),
+  ];
+  $('objChips').innerHTML = askables.length
+    ? askables.map(a => `<button class="chip" data-ask="${a.name}">
+         ${a.tagged ? '\u{1F514} ' : ''}where is my ${a.name}?</button>`).join('')
+    : `<span class="tiny">Nothing set up. Add things in <a href="family.html">Setup</a>.</span>`;
+  $('objChips').querySelectorAll('[data-ask]').forEach(b => b.onclick = async () => {
+    if (!Cues._busy) await Recall.whereIs(b.dataset.ask);
   });
 
   // places — dead schema no longer; these are the GPS triggers, driven by hand

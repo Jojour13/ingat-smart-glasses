@@ -557,6 +557,119 @@ tr:last-child td { border-bottom: 0; }
 .obligation .tx b { display: block; font-size: 12.5px; color: var(--ink); margin-bottom: 2px; }
 .obligation .tx span { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
 
+/* ---------------------------------------------------------- day planner
+   A timeline, not a table. The point is to see the SHAPE of a day at a
+   glance — where the gaps are, where things cluster — which a list of rows
+   cannot show. */
+.day {
+  position: relative;
+  padding-left: 74px;
+}
+.day::before {
+  content: '';
+  position: absolute;
+  left: 60px; top: 6px; bottom: 6px;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent, var(--rule) 8%, var(--rule) 92%, transparent);
+}
+.slot {
+  position: relative;
+  margin-bottom: 10px;
+}
+.slot .at {
+  position: absolute;
+  left: -74px; top: 12px;
+  width: 46px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.slot .knot {
+  position: absolute;
+  left: -18px; top: 16px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--white);
+  border: 2.5px solid var(--rule);
+  z-index: 1;
+}
+.slot.now .knot { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-lt); }
+.slot.done .knot { background: var(--green); border-color: var(--green); }
+.slot .card2 {
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  padding: 11px 13px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.slot:hover .card2 { border-color: var(--muted); }
+.slot.now .card2 { border-color: var(--accent); background: var(--accent-lt); }
+.slot.done .card2 { opacity: .62; }
+.slot.done .card2 h4 { text-decoration: line-through; }
+.slot .card2 h4 {
+  margin: 0 0 3px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.slot .card2 p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.slot .acts { margin-top: 9px; display: flex; gap: 6px; flex-wrap: wrap; }
+.kind {
+  display: inline-block;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 4px; margin-bottom: 5px;
+}
+.kind.meal   { background: #FBF2DE; color: #9A6B12; }
+.kind.move   { background: #E8F0EC; color: #2F5D50; }
+.kind.task   { background: #F2EDE6; color: #6E6660; }
+.kind.social { background: #F6EDE7; color: #B4472C; }
+.kind.rest   { background: #EDEBF3; color: #58527A; }
+@media (max-width: 560px) {
+  .day { padding-left: 0; }
+  .day::before { display: none; }
+  .slot .at { position: static; width: auto; text-align: left; display: block; margin-bottom: 3px; }
+  .slot .knot { display: none; }
+}
+
+/* ------------------------------------------------------------- tag tiles */
+.tags { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 11px; }
+.tag {
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 13px;
+  background: var(--white);
+  text-align: center;
+  position: relative;
+}
+.tag.live { border-color: var(--green); }
+.tag .glyph { font-size: 26px; line-height: 1; margin-bottom: 7px; }
+.tag b { display: block; font-size: 13px; color: var(--ink); }
+.tag span { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.tag .x {
+  position: absolute; top: 5px; right: 5px;
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 0; background: var(--band); color: var(--muted);
+  cursor: pointer; font-size: 12px; line-height: 1;
+}
+.tag.add {
+  border-style: dashed;
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  min-height: 108px;
+  color: var(--muted);
+}
+.tag.add:hover { border-color: var(--accent); background: var(--accent-lt); color: var(--accent); }
+
+@keyframes ringing {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-13deg); } 40% { transform: rotate(11deg); }
+  60% { transform: rotate(-8deg); }  80% { transform: rotate(6deg); }
+}
+.tag.ringing .glyph { animation: ringing .55s ease-in-out 3; }
+.tag.ringing { border-color: var(--accent); background: var(--accent-lt); }
+
 /* ---------------------------------------------------------------- misc */
 .hr { height: 1px; background: var(--rule); border: 0; margin: 18px 0; }
 .stack > * + * { margin-top: 10px; }

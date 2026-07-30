@@ -175,9 +175,15 @@ const Recall = {
    * him at that moment would be unkind and useless.
    */
   async whereIs(query) {
-    const o = Store.findObject(query);
     Store.log(EV.OBJ_ASK, { detail: query });
     const lang = Store.s.patient.language;
+
+    // A tag beats a memory. If this thing has one, ring it — a sound in the
+    // room finds a wallet under a cushion faster than any description can.
+    const tag = typeof Tags !== 'undefined' ? Store.findTag(query) : null;
+    if (tag) return this._findByTag(tag, lang);
+
+    const o = Store.findObject(query);
     if (!o) {
       await Speech.say('I do not know where that is.', { lang, tag: 'object' });
       return null;
@@ -190,6 +196,30 @@ const Recall = {
     Store.log(EV.OBJ_TOLD, { detail: `${o.name} — ${fresh ? seen.place : o.home}` });
     await Speech.say(text, { lang, tag: 'object' });
     return o;
+  },
+
+  /** Ring the tag, then say where to listen. */
+  async _findByTag(tag, lang) {
+    const res = await Tags.ring(tag);
+    Store.log(EV.TAG_RING, { detail: `${tag.name}${res.real ? '' : ' (simulated)'}` });
+
+    const prox = Tags.proximity(tag.lastSeen ? tag.lastSeen.rssi : null);
+    const bits = [];
+    if (res.rang) bits.push(`Your ${tag.name} is beeping now.`);
+    else bits.push(`I cannot reach your ${tag.name}.`);
+
+    if (tag.lastSeen && tag.lastSeen.place) {
+      bits.push(`Last time it was in ${tag.lastSeen.place}.`);
+    } else if (res.rang && prox.band !== 'unknown') {
+      bits.push(`It sounds like it is ${prox.words}.`);
+    } else if (res.rang) {
+      bits.push('Follow the sound.');
+    }
+
+    const text = bits.join(' ');
+    Store.log(EV.TAG_FOUND, { detail: `${tag.name} — ${prox.band}` });
+    await Speech.say(text, { lang, tag: 'object' });
+    return { tag, result: res, proximity: prox };
   },
 
   _ago(ts) {

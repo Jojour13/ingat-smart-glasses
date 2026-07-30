@@ -41,6 +41,11 @@ const EV = {
   OBJ_ASK:      'object_asked',
   OBJ_TOLD:     'object_answered',
   OBJ_SEEN:     'object_placed',
+  THREAD_HELD:  'thread_reminded',
+  PLAN_ITEM:    'plan_item_due',
+  PLAN_DONE:    'plan_item_done',
+  TAG_RING:     'tag_rang',
+  TAG_FOUND:    'tag_located',
   GEO_LEFT:     'left_safe_zone',
   GEO_BACK:     'returned_safe_zone',
   GEO_HOME:     'way_home_given',
@@ -76,9 +81,14 @@ function newCue() {
   return { stage: 0, wins: 0, losses: 0, intervalH: 4, lastTrial: null };
 }
 
+/* Schema version. BUMP THIS whenever a new top-level collection is added,
+   or migrate() will not run for anyone who already has a saved session and
+   their new features will silently render empty. */
+const SCHEMA = 4;
+
 function seedState() {
   return {
-    version: 3,
+    version: SCHEMA,
     created: Date.now(),
     patient: {
       name: 'Tan Ah Kow',
@@ -125,6 +135,20 @@ function seedState() {
       { id: 'o3', name: 'walking stick', home: 'beside the sofa', lastSeen: null, tagged: false, cue: newCue(), trials: [] },
       { id: 'o4', name: 'spectacles case', home: 'the bedside table', lastSeen: null, tagged: false, cue: newCue(), trials: [] },
     ],
+
+    /* ---- The day, written by the family --------------------------------
+       Not a to-do list. A shape for the day, spoken at the right moment.
+       Each item is one thing, at one time, in his own words. */
+    plan: [
+      { id: 'pl1', time: '07:30', title: 'Breakfast', detail: 'Porridge is in the pot. Fatimah made it.', kind: 'meal', done: null },
+      { id: 'pl2', time: '09:30', title: 'Walk downstairs', detail: 'One round of the void deck, then sit for a while.', kind: 'move', done: null },
+      { id: 'pl3', time: '12:30', title: 'Lunch', detail: 'There is rice and soup in the fridge.', kind: 'meal', done: null },
+      { id: 'pl4', time: '16:00', title: 'Water the plants', detail: 'The ones on the corridor, not the balcony.', kind: 'task', done: null },
+      { id: 'pl5', time: '19:00', title: 'Mei Ling calls', detail: 'She rings most evenings after her dinner.', kind: 'social', done: null },
+    ],
+
+    /* ---- Bluetooth tags on the things he loses ---------------------- */
+    tags: [],                 // { id, name, deviceId, deviceName, paired, lastSeen, rssi }
 
     /* ---- Geofence. A safe zone, not a map with a dot on it. --------- */
     zones: [],                // { id, label, lat, lng, radiusM }
@@ -185,6 +209,8 @@ function migrate(s) {
   (s.objects || []).forEach(o => { if (!o.cue) o.cue = newCue(); if (!o.trials) o.trials = []; });
   if (!s.zones)   s.zones   = [];
   if (!s.geo)     s.geo     = { inZone: null, lastFix: null, lastEvent: null };
+  if (!s.plan)    s.plan    = fresh.plan;
+  if (!s.tags)    s.tags    = [];
   if (s.consent && s.consent.purposes) {
     const p = s.consent.purposes;
     if (p.conversation === undefined) p.conversation = false;
@@ -208,7 +234,7 @@ const Store = {
       this.s = seedState();
     }
     if (!this.s.version) this.s = seedState();
-    else if (this.s.version < 3) this.s = migrate(this.s);
+    else if (this.s.version < SCHEMA) this.s = migrate(this.s);
     return this.s;
   },
 
@@ -379,6 +405,45 @@ const Store = {
     if (!o) return;
     o.lastSeen = { place: where, ts: Date.now() };
     this.log(EV.OBJ_SEEN, { detail: `${o.name} — ${where}` });
+    this.save();
+  },
+
+  /* ------------------------------------------------------ daily plan */
+  addPlan(p)     { this.s.plan.push({ id: this._id('pl'), kind: 'task', done: null, ...p });
+                   this.s.plan.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+                   this.audit('plan.create', `${p.time} ${p.title}`); this.save(); },
+  removePlan(id) { const p = this.s.plan.find(x => x.id === id);
+                   this.s.plan = this.s.plan.filter(x => x.id !== id);
+                   this.audit('plan.delete', p ? p.title : id); this.save(); },
+  updatePlan(id, patch) { const p = this.s.plan.find(x => x.id === id);
+                          if (p) { Object.assign(p, patch);
+                                   this.s.plan.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+                                   this.save(); } },
+  markPlanDone(id) {
+    const p = this.s.plan.find(x => x.id === id);
+    if (!p) return;
+    p.done = { date: this.todayKey(), ts: Date.now() };
+    this.log(EV.PLAN_DONE, { detail: p.title });
+    this.save();
+  },
+  planDoneToday(p) { return !!(p.done && p.done.date === this.todayKey()); },
+  planToday() { return this.s.plan.slice().sort((a, b) => (a.time || '').localeCompare(b.time || '')); },
+
+  /* ------------------------------------------------ bluetooth tags */
+  addTag(t)     { this.s.tags.push({ id: this._id('t'), paired: false, lastSeen: null, ...t });
+                  this.audit('tag.pair', t.name); this.save(); },
+  removeTag(id) { const t = this.s.tags.find(x => x.id === id);
+                  this.s.tags = this.s.tags.filter(x => x.id !== id);
+                  this.audit('tag.remove', t ? t.name : id); this.save(); },
+  findTag(name) {
+    const n = (name || '').toLowerCase();
+    return this.s.tags.find(t => n.includes(t.name.toLowerCase()))
+        || this.s.tags.find(t => t.name.toLowerCase().includes(n));
+  },
+  noteTagSeen(id, where, rssi) {
+    const t = this.s.tags.find(x => x.id === id);
+    if (!t) return;
+    t.lastSeen = { place: where || null, ts: Date.now(), rssi: rssi ?? null };
     this.save();
   },
 

@@ -34,6 +34,7 @@ const Schedule = {
     try {
       if (await this.briefing(now)) return;
       if (await this.medication(now)) return;
+      if (await this.plan(now)) return;
       if (await this.appointments(now)) return;
       if (await this.reminiscence(now)) return;
     } catch (e) { console.warn('schedule', e); }
@@ -103,6 +104,33 @@ const Schedule = {
   confirmMed(id) {
     Store.markFired('medok:' + id);
     Store.log(EV.MED_OK, { detail: id });
+  },
+
+  /* ---------------------------------------------------------- daily plan
+     The shape of the day, written by the family, spoken at the moment it
+     matters. Not a to-do list he has to consult — a to-do list has to be
+     remembered, which is the whole problem.
+
+     Said ONCE. If he has already ticked it off, it is not raised again: being
+     told to eat lunch after you have eaten lunch is not a reminder, it is a
+     contradiction, and it teaches a person with dementia to distrust himself. */
+  async plan(now) {
+    const mins = now.getHours() * 60 + now.getMinutes();
+    for (const item of Store.s.plan) {
+      if (!item.time) continue;
+      if (Store.planDoneToday(item)) continue;
+      if (mins !== this._minutes(item.time)) continue;
+      const key = 'plan:' + item.id;
+      if (Store.hasFired(key)) continue;
+
+      Store.markFired(key);
+      const text = item.detail ? `${item.title}. ${item.detail}` : `${item.title}.`;
+      Store.log(EV.PLAN_ITEM, { detail: item.title });
+      this.onFire && this.onFire('plan', { item, text });
+      await Speech.say(text, { tag: 'plan' });
+      return true;
+    }
+    return false;
   },
 
   /* -------------------------------------------------------- appointments
@@ -180,6 +208,10 @@ const Schedule = {
     const out = [];
     const day = now.toLocaleDateString('en-GB', { weekday: 'long' });
     out.push({ time: '07:00', kind: 'briefing', text: `Good morning. Today is ${day}. …` });
+    Store.s.plan.forEach(p => out.push({
+      time: p.time, kind: 'plan',
+      text: p.detail ? `${p.title}. ${p.detail}` : `${p.title}.`,
+    }));
     Store.s.meds.forEach(m => out.push({
       time: m.time, kind: 'med',
       text: `It is ${(m.time || '').replace(':', ' ')}. Time for your ${m.name}, ${m.desc}.`,

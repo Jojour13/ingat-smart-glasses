@@ -43,6 +43,8 @@
         <div class="kpi"><b id="kServed">0</b><span>prompts served</span></div>
         <div class="kpi"><b class="a" id="kNeeded">0</b><span>prompts needed</span></div>
         <div class="kpi"><b id="kMeds">0/2</b><span>doses confirmed</span></div>
+        <div class="kpi"><b id="kPlan">0/0</b><span>his day</span></div>
+        <div class="kpi"><b id="kThread">0</b><span>lost the thread</span></div>
       </div>
     </div>
   </div>
@@ -290,6 +292,13 @@ function render() {
   $('kServed').textContent = served;
   $('kNeeded').textContent = needed;
   $('kMeds').textContent = `${medOk}/${s.meds.length}`;
+  const planDone = s.plan.filter(p => Store.planDoneToday(p)).length;
+  $('kPlan').textContent = `${planDone}/${s.plan.length}`;
+  // Losing the thread mid-conversation is a symptom, and how often it happens
+  // is a signal in its own right — it is also the thing that makes people stop
+  // talking to their families.
+  const threads = ev.filter(e => e.type === EV.THREAD_HELD).length;
+  $('kThread').textContent = threads;
 
   /* alerts — push, not pull */
   const al = [];
@@ -535,6 +544,8 @@ function render() {
     [EV.OBJ_SEEN]: 'object put down',
     [EV.GEO_LEFT]: 'left the safe zone', [EV.GEO_BACK]: 'returned to the safe zone',
     [EV.GEO_HOME]: 'given the way home',
+    [EV.THREAD_HELD]: 'lost the thread — reminded', [EV.PLAN_ITEM]: 'reminded about his day',
+    [EV.PLAN_DONE]: 'done', [EV.TAG_RING]: 'rang a tracker', [EV.TAG_FOUND]: 'tracker located',
   };
   const KIND = {
     [EV.UNAIDED]: 'ok', [EV.STAGE_UP]: 'ok', [EV.MED_OK]: 'ok',
