@@ -12,6 +12,10 @@ python serve.py
 
 Then open **http://localhost:8000**. New to it? Read [START-HERE.md](START-HERE.md) — plain English, four minutes.
 
+**[FEATURES.md](FEATURES.md) is the complete guide** — every page, every feature,
+the five-minute demo script, what is real and what is simulated, and the known
+limits.
+
 ---
 
 ## What it does
