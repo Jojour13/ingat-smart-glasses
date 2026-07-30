@@ -125,7 +125,7 @@ function seedLifespace(days) {
   const rows = [];
   for (let n = days; n >= 1; n--) {
     const d = new Date(Date.now() - n * 86400000);
-    const day = d.toISOString().slice(0, 10);
+    const day = Fmt.dayKey(d.getTime());
     const weekend = d.getDay() === 0 || d.getDay() === 6;
     // The last week is deliberately smaller than the month before it, so the
     // panel demonstrates the thing it exists to detect — the same reason the
@@ -147,10 +147,97 @@ function newCue() {
   return { stage: 0, wins: 0, losses: 0, intervalH: 4, lastTrial: null };
 }
 
+/* ---------------------------------------------------------------------------
+   One demo person, so the Memory Vault has a history to show.
+
+   The vault's whole argument is that it COMPOUNDS — that after three months of
+   visits it knows things nobody typed in. That argument cannot be made by an
+   empty page, and it cannot be made in the ninety seconds a judge spends on
+   the stand either. So Mei Ling arrives with eleven weeks behind her.
+
+   She has NO face descriptor. She cannot be recognised, she will never trigger
+   a prompt, and enrolling a real person still requires a real photograph. She
+   exists to be read, and every screen that shows her says she is a sample.
+   --------------------------------------------------------------------------- */
+function seedVaultPerson() {
+  const day = n => Date.now() - n * 86400000;
+  const S = (n, hour, min, topics, summary, facts = []) => ({
+    id: 's' + n, ts: new Date(new Date(day(n)).setHours(hour, 0, 0, 0)).getTime(),
+    day: Fmt.dayKey(day(n)),
+    durationMin: min, people: ['seed-meiling'], names: ['Mei Ling'],
+    topics, facts: facts.map((text, i) => ({ id: 'sf' + n + i, text })),
+    summary, model: 'sample', fragments: Math.round(min * 4), seeded: true,
+  });
+
+  return {
+    id: 'seed-meiling',
+    name: 'Mei Ling',
+    relation: 'Daughter',
+    memory: 'She brings kaya toast on Sundays.',
+    photo: null,
+    descriptor: [],              // deliberately empty — she cannot be recognised
+    seeded: true,
+    cue: newCue(),
+    trials: [],
+    created: day(78),
+    vault: {
+      rotate: 0,
+      notes: [
+        { id: 'n-seed-1', text: 'She brings kaya toast on Sundays.',
+          source: 'family', ts: day(78), pinned: true },
+        { id: 'n-seed-2', text: 'She works at the hospital in Novena and finishes at six.',
+          source: 'family', ts: day(78), pinned: true },
+        { id: 'n-seed-3', text: 'Wei Jie passed his A levels',
+          source: 'conversation', ts: day(6), pinned: false },
+        { id: 'n-seed-4', text: 'The lift in her block has been broken for a week',
+          source: 'conversation', ts: day(13), pinned: false },
+        { id: 'n-seed-5', text: 'She is taking leave on the 12th for the clinic appointment',
+          source: 'conversation', ts: day(20), pinned: false },
+        { id: 'n-seed-6', text: 'Wei Jie has started driving lessons',
+          source: 'conversation', ts: day(34), pinned: false },
+      ],
+      topics: [
+        { word: 'Wei Jie', count: 19, lastTs: day(6) },
+        { word: 'hospital', count: 11, lastTs: day(13) },
+        { word: 'kaya toast', count: 9, lastTs: day(6) },
+        { word: 'the lift', count: 7, lastTs: day(13) },
+        { word: 'driving lessons', count: 5, lastTs: day(34) },
+        { word: 'clinic', count: 4, lastTs: day(20) },
+      ],
+      visits: [6, 13, 20, 27, 34, 41, 48, 55, 62, 69, 76].map(n => ({
+        ts: day(n), durationMs: (35 + (n % 4) * 9) * 60000, fragments: 90, seeded: true,
+      })),
+      sessions: [
+        S(6, 15, 52, ['Wei Jie', 'exams', 'kaya toast'],
+          'Mei Ling came over on Sunday afternoon with kaya toast. Most of it was about Wei Jie getting his A level results.',
+          ['Wei Jie passed his A levels']),
+        S(13, 16, 38, ['the lift', 'hospital', 'shopping'],
+          'A shorter visit after her shift. She was mostly complaining about the lift in her block being out again.',
+          ['The lift in her block has been broken for a week']),
+        S(20, 15, 44, ['clinic', 'appointment', 'leave'],
+          'They sorted out the clinic appointment together and she said she would take the morning off.',
+          ['She is taking leave on the 12th for the clinic appointment']),
+        S(27, 14, 61, ['kaya toast', 'the kampong', 'Punggol'],
+          'A long Sunday. He told her about the kampong in Punggol again and she let him.', []),
+        S(34, 16, 29, ['driving lessons', 'Wei Jie'],
+          'Brief one. Wei Jie has started driving lessons and she is not enjoying being the passenger.',
+          ['Wei Jie has started driving lessons']),
+        S(41, 15, 47, ['hospital', 'her roster', 'kaya toast'], 'Sunday as usual, mostly about her new roster.', []),
+        S(48, 15, 55, ['Wei Jie', 'school'], 'They talked about Wei Jie finishing school.', []),
+        S(55, 16, 33, ['shopping', 'market'], 'She took him to the market and they had lunch after.', []),
+        S(62, 15, 50, ['the wedding', 'Siew Kim'],
+          'He talked about the wedding in 1978 and she asked him about the nine tables.', []),
+        S(69, 15, 41, ['hospital', 'work'], 'A quiet Sunday. She was tired after a long week.', []),
+        S(76, 14, 58, ['kaya toast', 'Wei Jie'], 'The first visit the glasses were there for.', []),
+      ],
+    },
+  };
+}
+
 /* Schema version. BUMP THIS whenever a new top-level collection is added,
    or migrate() will not run for anyone who already has a saved session and
    their new features will silently render empty. */
-const SCHEMA = 5;
+const SCHEMA = 6;
 
 function seedState() {
   return {
@@ -165,7 +252,7 @@ function seedState() {
       wakeHours: 9,             // unsupervised weekday window, 9am-6pm
       speechRate: 0.82,         // presbycusis profile: 18% slower
     },
-    people: [],
+    people: [seedVaultPerson()],
     meds: [
       { id: 'm1', name: 'Donepezil', desc: 'the white pill, with water', time: '13:00' },
       { id: 'm2', name: 'Amlodipine', desc: 'the small yellow pill', time: '08:00' },
@@ -304,6 +391,14 @@ function migrate(s) {
   if (!s.activity || !s.activity.length
       || !s.activity.some(r => r.t >= cutoff)) s.activity = fresh.activity;
   if (!s.lifespace || !s.lifespace.length) s.lifespace = fresh.lifespace;
+
+  // v6 — the sample vault person, but ONLY into an empty address book. If this
+  // family has enrolled their own people, quietly inserting a daughter they do
+  // not have would be worse than an empty demo page.
+  if (!s.people || !s.people.length) s.people = fresh.people;
+  (s.people || []).forEach(p => {
+    if (p.vault && !p.vault.sessions) p.vault.sessions = [];
+  });
   if (s.consent && s.consent.purposes) {
     const p = s.consent.purposes;
     if (p.conversation === undefined) p.conversation = false;
@@ -606,7 +701,10 @@ const Store = {
   removeZone(id) { this.s.zones = this.s.zones.filter(x => x.id !== id); this.audit('zone.delete', id); this.save(); },
 
   /* -------------------------------------------- scheduler dedupe keys */
-  todayKey() { return new Date().toISOString().slice(0, 10); },
+  /* Local, not UTC. See Fmt.dayKey — in Singapore a UTC day key rolls over
+     at 8am, so the morning medication prompt at 07:55 would be filed under
+     yesterday and the whole once-per-day dedupe would misfire every morning. */
+  todayKey() { return Fmt.dayKey(); },
   hasFired(key) {
     if (this.s.fired.day !== this.todayKey()) return false;
     return this.s.fired.keys.includes(key);
@@ -705,6 +803,23 @@ const Fmt = {
   },
   initials(n) {
     return (n || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  },
+  /** "3 Jul" — a date a person reads, not an ISO string. */
+  day(ts) {
+    return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  },
+  /**
+   * "2026-07-31" in LOCAL time, for grouping things by day.
+   *
+   * NOT toISOString().slice(0,10). Singapore is UTC+8, so anything happening
+   * before 8am has a UTC date of the day before — an 8:30pm dinner is fine but
+   * a 7am breakfast conversation would be filed under yesterday, and the whole
+   * timeline would quietly drift by one day for a third of the morning.
+   */
+  dayKey(ts = Date.now()) {
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   },
 };
 

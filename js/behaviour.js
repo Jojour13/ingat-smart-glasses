@@ -143,7 +143,7 @@ const Behaviour = {
   social(days = 7) {
     const since = Date.now() - days * 86400000;
     const people = Store.s.people;
-    let minutes = 0, visits = 0;
+    let minutes = 0, visits = 0, seededVisits = 0;
     const seen = new Set();
 
     people.forEach(p => {
@@ -151,6 +151,7 @@ const Behaviour = {
       v.forEach(x => {
         if (x.ts < since) return;
         visits++;
+        if (x.seeded) seededVisits++;
         minutes += x.durationMs / 60000;
         seen.add(p.id);
       });
@@ -162,6 +163,11 @@ const Behaviour = {
       minutes: Math.round(minutes),
       distinctPeople: seen.size,
       perDay: +(visits / days).toFixed(1),
+      // How much of this came from the sample record rather than from the
+      // microphone. The card says so out loud — a number that mixes seeded and
+      // measured data without saying which is the one dishonest thing this
+      // dashboard could do.
+      seededVisits,
     };
   },
 

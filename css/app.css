@@ -159,16 +159,24 @@ a { color: var(--accent); }
 @media (max-width: 780px) {
   .topbar { padding: 8px 14px; }
   .topbar .tag { display: none; }      /* presenter copy, not navigation */
+  /* WRAP, do not scroll.
+     This was a horizontal scroller, which worked at five destinations and
+     broke at six: on a 375px phone the last link sat past the right edge with
+     nothing to suggest it was there, so the Privacy page — the one a family is
+     most likely to go looking for — became invisible. A hidden scroll
+     affordance is a link nobody clicks. Two visible rows beat one clever one. */
   .topbar nav {
     margin-left: 0;
     order: 3;
     width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    flex-wrap: wrap;
+    gap: 2px;
+    row-gap: 0;
   }
-  .topbar nav::-webkit-scrollbar { display: none; }
-  .topbar nav a { flex: 0 0 auto; }
+  .topbar nav a { flex: 0 0 auto; padding: 12px; }   /* 44px minimum target */
+}
+@media (max-width: 420px) {
+  .topbar nav a { padding: 12px 9px; font-size: 13.5px; }
 }
 
 /* Skip link — five repeated nav links on every page is five tab stops before
@@ -205,6 +213,10 @@ a { color: var(--accent); }
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
+  /* 12 + 20 + 12 = 44 exactly. Left to the font's natural line box this came
+     out at 43px, which is a target that fails the guideline by one pixel on
+     every page — the kind of thing nobody notices and everybody inherits. */
+  line-height: 20px;
   padding: 12px 14px;
   border-radius: 6px;
   white-space: nowrap;
@@ -366,7 +378,24 @@ label.fld span {
   color: var(--muted);
   margin-bottom: 4px;
 }
-input[type=text], input[type=time], input[type=date], select, textarea {
+/* A standalone label above a field, where .fld's wrapper is not wanted. */
+label.lbl, .lbl {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+/* `input[type=text]` does NOT match `<input id="x">`. An input with no type
+   attribute behaves as text but has no `type` attribute for the selector to
+   read, so it silently escaped every rule below — 21px tall, hairline border,
+   no 44px target, and on iOS the page zooms when you focus it. Matching by
+   exclusion catches those, and any future type nobody thought to list. */
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=submit]):not([type=button]),
+select, textarea {
   font: inherit;
   font-size: 16px;          /* 16px also stops iOS zooming the page on focus */
   width: 100%;

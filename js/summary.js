@@ -119,7 +119,7 @@ const Summary = {
     return { text, model, route: text === this.template(d) ? 'template' : route, data: d };
   },
 
-  async _ollama(d) {
+  async _ollama(d, system = SYSTEM, predict = 220) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), this.TIMEOUT_MS);
     try {
@@ -129,10 +129,10 @@ const Summary = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: this.OLLAMA_MODEL,
-          system: SYSTEM,
+          system,
           prompt: JSON.stringify(d),
           stream: false,
-          options: { temperature: 0.3, num_predict: 220 },
+          options: { temperature: 0.3, num_predict: predict },
         }),
       });
       if (!r.ok) throw new Error('ollama ' + r.status);
@@ -185,9 +185,161 @@ const Summary = {
     return s.join(' ');
   },
 
+  /** For plan items and other sentence-case titles. */
   _list(a) {
     if (a.length === 1) return a[0].toLowerCase();
     return a.slice(0, -1).map(x => x.toLowerCase()).join(', ') + ' and ' + a[a.length - 1].toLowerCase();
+  },
+
+  /** For topics. Lowercasing these turns "Wei Jie" into "wei jie". */
+  _listRaw(a) {
+    if (!a.length) return '';
+    if (a.length === 1) return a[0];
+    return a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  },
+
+  /* ==========================================================================
+     PER-CONVERSATION SUMMARY
+
+     Two sentences describing one visit, written when the conversation ends and
+     stored against everyone who was in it. This is what makes the vault
+     browsable — "the 12th of July, with Mei Ling" has to say something.
+
+     THE RULE ABOUT WHAT THE MODEL SEES
+
+     The rolling buffer exists in memory during a conversation and is destroyed
+     when it ends. It is the richest thing available, and it is also the one
+     thing we have promised never to store or transmit. So:
+
+       - A model running ON THIS MACHINE (Ollama, open weights, localhost) may
+         see the buffer. Nothing leaves the flat, and only the two sentences it
+         writes are kept.
+       - A model running ANYWHERE ELSE — including Huawei Cloud, including our
+         own future servers — sees only the topics and the facts a human has
+         already read and approved.
+
+     That distinction is not a technicality. "Your conversation never leaves
+     the house" is either true or it is marketing, and the only way to keep it
+     true is to make the code refuse.
+
+     Either way what is STORED is the same: two sentences, capped, derived.
+     ========================================================================*/
+
+  MAX_SUMMARY_WORDS: 45,
+
+  async conversation(session, { topics = [], facts = [], buffer = null } = {}) {
+    const names = (session.people || [])
+      .map(id => (Store.person(id) || {}).name).filter(Boolean);
+    const minutes = Math.max(1, Math.round(
+      ((session.lastHeard || Date.now()) - (session.started || Date.now())) / 60000));
+
+    const payload = {
+      who: names.join(' and ') || 'someone',
+      minutes,
+      topics: topics.map(t => t.word || t).slice(0, 6),
+      confirmed: facts.map(f => f.text || f).slice(0, 5),
+      // Context from previous visits, so the summary can say "again" — which
+      // is exactly the kind of thing a person notices and a log does not.
+      knownAlready: names.length === 1 && Store.person(session.people[0])
+        ? Vault.promptContext(Store.person(session.people[0]), 3) : '',
+    };
+
+    const route = await this.route();
+    let text = null, model = null;
+
+    try {
+      if (route === 'ollama') {
+        // On-device only: the buffer may be included.
+        const local = { ...payload };
+        if (buffer && buffer.length) {
+          local.heard = buffer.slice(-40).map(b => b.text);
+          local.NOTE = 'The heard lines are in memory only and are being destroyed now. '
+                     + 'Do not quote them. Describe what the conversation was about.';
+        }
+        text = await this._ollama(local, CONVO_SYSTEM, 90);
+        model = 'Ollama · ' + this.OLLAMA_MODEL + (local.heard ? ' (on-device)' : '');
+      } else if (route === 'maas' && typeof MaaS !== 'undefined' && MaaS.conversationSummary) {
+        // Off-device: topics and confirmed facts only. Never the buffer.
+        text = await MaaS.conversationSummary(payload);
+        model = 'Huawei Cloud MaaS · ' + MaaS.CONFIG.model;
+      }
+    } catch (e) {
+      console.warn('summary: conversation model failed, writing it locally', e);
+      text = null;
+    }
+
+    if (!text) { text = this.conversationTemplate(payload); model = 'written locally'; }
+    return { text: this._cap(text), model, payload };
+  },
+
+  /** A stored summary is two sentences. Anything longer is a transcript. */
+  _cap(text) {
+    const t = String(text).replace(/\s+/g, ' ').trim();
+    const sentences = t.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
+    const words = sentences.split(/\s+/);
+    return words.length <= this.MAX_SUMMARY_WORDS
+      ? sentences
+      : words.slice(0, this.MAX_SUMMARY_WORDS).join(' ').replace(/[,;:]$/, '') + '…';
+  },
+
+  conversationTemplate(p) {
+    const s = [];
+    s.push(`${p.who} was here for about ${p.minutes} minute${p.minutes === 1 ? '' : 's'}.`);
+    if (p.confirmed.length) s.push(`They talked about ${p.confirmed[0].replace(/\.?$/, '').toLowerCase()}.`);
+    else if (p.topics.length) s.push(`Mostly about ${this._listRaw(p.topics)}.`);
+    return s.join(' ');
+  },
+
+  /* ==========================================================================
+     PER-PERSON SUMMARY ACROSS TIME
+
+     "How have things been with Mei Ling lately?" — read off the stored
+     conversation records, not off anything new. Weeks, not one day.
+     ========================================================================*/
+  async person(personId, days = 30) {
+    const p = Store.person(personId);
+    if (!p) return null;
+    const days_ = Vault.timeline(personId, days);
+    const sessions = days_.flatMap(d => d.sessions);
+    const payload = {
+      who: p.name,
+      relation: p.relation || '',
+      days,
+      conversations: sessions.length,
+      minutes: sessions.reduce((n, s) => n + s.durationMin, 0),
+      topics: [...new Set(sessions.flatMap(s => s.topics))].slice(0, 8),
+      moments: sessions.flatMap(s => s.facts.map(f => f.text)).slice(0, 8),
+      lastSeen: sessions[0] ? Vault._dayLabel(sessions[0].day) : null,
+    };
+    if (!sessions.length) {
+      return { text: `No conversations with ${p.name} in the last ${days} days.`,
+               model: 'written locally', payload };
+    }
+
+    const route = await this.route();
+    let text = null, model = null;
+    try {
+      if (route === 'ollama') {
+        text = await this._ollama(payload, PERSON_SYSTEM, 130);
+        model = 'Ollama · ' + this.OLLAMA_MODEL;
+      } else if (route === 'maas' && typeof MaaS !== 'undefined' && MaaS.personSummary) {
+        text = await MaaS.personSummary(payload);
+        model = 'Huawei Cloud MaaS · ' + MaaS.CONFIG.model;
+      }
+    } catch (e) { text = null; }
+
+    if (!text) { text = this.personTemplate(payload); model = 'written locally'; }
+    return { text, model, payload };
+  },
+
+  personTemplate(p) {
+    const s = [];
+    s.push(`${p.who} has been over ${p.conversations} time${p.conversations === 1 ? '' : 's'} `
+         + `in the last ${p.days} days, about ${p.minutes} minutes altogether.`);
+    if (p.topics.length) s.push(`They keep coming back to ${this._listRaw(p.topics.slice(0, 3))}.`);
+    if (p.moments.length) s.push(`Things worth keeping from those visits: ${p.moments.slice(0, 2).join('; ')}.`);
+    if (p.lastSeen) s.push(`Last time was ${p.lastSeen.toLowerCase()}.`);
+    return s.join(' ');
   },
 };
 
@@ -203,6 +355,31 @@ Rules:
 - If something went less well, say it plainly and without alarm, and suggest
   mentioning it at his next appointment rather than acting tonight.
 - End on the most human thing in the data, not the most clinical.
+- Return the note only.`;
+
+const CONVO_SYSTEM = `You write ONE OR TWO SENTENCES describing a visit that has just
+ended, for a family to read weeks later. You may be given the lines that were
+heard; they are in memory only and are being deleted as you read them.
+
+Rules:
+- Two sentences maximum. Under 40 words. No headings, no bullets, no emoji.
+- Describe what the visit was ABOUT. Do not quote anyone.
+- Never write anything you were told only in the heard lines that a family
+  member has not confirmed. If in doubt, stay general.
+- Warm and plain, the way you would tell a friend how an afternoon went.
+- No diagnosis, no assessment of how he coped, no clinical words.
+- Return the sentences only.`;
+
+const PERSON_SYSTEM = `You write three or four sentences about how one person's
+visits have been going over the last few weeks, for the family to read. You are
+given counts, topics and short confirmed facts — never a transcript.
+
+Rules:
+- Three or four sentences. Plain English. No headings, no bullets, no emoji.
+- Write about a relationship, not a data set.
+- Never use the words dementia, decline, deterioration, patient or symptom.
+- No diagnosis, no prediction, no medical advice.
+- If they have been coming less often, say so gently and without alarm.
 - Return the note only.`;
 
 window.Summary = Summary;

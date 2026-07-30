@@ -35,6 +35,7 @@ const Memory = {
   activePersonId: null,
   onPropose: null,          // (fact) => void
   onState: null,            // (bool listening, personId) => void
+  onSummary: null,          // (sessionId, {text, model}) => void
 
   BUFFER_MS: 6 * 60 * 1000, // nothing older than six minutes is retained
   MAX_CHARS: 4000,
@@ -154,13 +155,38 @@ const Memory = {
     return facts;
   },
 
-  /** Close one session by key. Harvest, record the visit, then wipe. */
+  /** Close one session by key. Harvest, write it down, then wipe. */
   _close(key, propose = true) {
     const s = this._sessions.get(key);
     if (!s) return null;
     let facts = null;
     if (propose && s.buf.length) facts = this._propose(s);
-    if (typeof Vault !== 'undefined') Vault.recordVisit(s);
+
+    if (typeof Vault !== 'undefined') {
+      Vault.recordVisit(s);
+      // The conversation goes into each person's history as ONE RECORD:
+      // who, when, how long, what it was about, and what came out of it.
+      const topics = this._topics(s.buf.map(b => b.text));
+      const rec = Vault.addSession(s, { topics, facts: facts || [] });
+
+      // The two-sentence description is written by a model, which is slow and
+      // may not be there at all, so it is attached afterwards rather than
+      // blocking the close. Crucially the buffer is handed over BEFORE the
+      // wipe below, and only to a model running on this machine — see the rule
+      // in summary.js. Whatever happens, the buffer still dies on the next
+      // line; a model that times out costs us a sentence, not a promise.
+      if (rec && typeof Summary !== 'undefined') {
+        const snapshot = s.buf.slice();
+        Summary.conversation(s, { topics, facts: facts || [], buffer: snapshot })
+          .then(r => {
+            snapshot.length = 0;
+            Vault.setSessionSummary(rec.id, r.text, r.model);
+            this.onSummary && this.onSummary(rec.id, r);
+          })
+          .catch(() => { snapshot.length = 0; });
+      }
+    }
+
     s.buf.length = 0;                  // explicit destruction
     this._sessions.delete(key);
     return facts;
@@ -281,15 +307,47 @@ const Memory = {
     return made;
   },
 
-  /** Every recurring content word, not just the single top one. */
+  /**
+   * Every recurring content word — but PAIRS FIRST.
+   *
+   * Counting single words turns "Wei Jie" into two topics called "wei" and
+   * "jie", and the vault then tells the family "they keep coming back to wei,
+   * jie, hospital". Two-word names and phrases are most of what a family
+   * actually talks about, so any pair that recurs is counted as one topic and
+   * its halves are not counted again.
+   */
   _topics(lines) {
-    const counts = new Map();
-    lines.forEach(l => this._contentWords(l).forEach(w => counts.set(w, (counts.get(w) || 0) + 1)));
-    return [...counts.entries()]
-      .filter(([, n]) => n >= 2)
+    const pairs = new Map(), singles = new Map(), display = new Map();
+
+    lines.forEach(l => {
+      const words = this._contentWords(l);
+      const shown = this._contentWords(l, true);
+      words.forEach((w, i) => {
+        singles.set(w, (singles.get(w) || 0) + 1);
+        if (!display.has(w)) display.set(w, shown[i] || w);
+        if (i < words.length - 1) {
+          const key = w + ' ' + words[i + 1];
+          pairs.set(key, (pairs.get(key) || 0) + 1);
+          if (!display.has(key)) {
+            display.set(key, ((shown[i] || w) + ' ' + (shown[i + 1] || words[i + 1])));
+          }
+        }
+      });
+    });
+
+    const out = [], claimed = new Set();
+    [...pairs.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1])
+      .forEach(([key, n]) => {
+        if (out.length >= 6) return;
+        out.push({ word: display.get(key) || key, n });
+        key.split(' ').forEach(w => claimed.add(w));
+      });
+
+    [...singles.entries()].filter(([w, n]) => n >= 2 && !claimed.has(w))
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([word, n]) => ({ word, n }));
+      .forEach(([w, n]) => { if (out.length < 6) out.push({ word: display.get(w) || w, n }); });
+
+    return out;
   },
 
   /**
@@ -314,12 +372,23 @@ const Memory = {
     });
   },
 
-  _contentWords(s) {
+  /**
+   * @param {string}  s
+   * @param {boolean} keepCase  return the word as it was spoken. Names lose
+   *   their capital when lowercased, and a topic chip reading "wei jie" looks
+   *   like a bug to the family even though the counting underneath is right.
+   */
+  _contentWords(s, keepCase = false) {
     const stop = new Set(['the','a','an','and','but','or','so','then','that','this','was','were',
                           'is','are','has','have','had','his','her','your','you','my','me','him',
                           'she','he','they','we','it','of','to','in','on','at','for','with','about']);
-    return (s || '').toLowerCase().replace(/[^a-z\s]/g, ' ')
-      .split(/\s+/).filter(w => w.length > 2 && !stop.has(w));
+    const raw = (s || '').replace(/[^A-Za-z\s]/g, ' ').split(/\s+/);
+    const out = [];
+    raw.forEach(w => {
+      const lower = w.toLowerCase();
+      if (w.length > 2 && !stop.has(lower)) out.push(keepCase ? w : lower);
+    });
+    return out;
   },
 
   MAX_WORDS: 16,   // a fact is one clause. Anything longer is a transcript.
