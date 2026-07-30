@@ -267,9 +267,18 @@ function render() {
   if (!s.wear.sessionStart && Store.wearMsToday() === 0) {
     al.push(['w', 'Not worn yet today', 'The glasses have not been picked up. Nothing to do unless this repeats — two consecutive days is when we would ask you to check in.']);
   }
-  const idle = ev.filter(e => e.type === EV.IDLE_OFF).length;
-  if (idle) {
-    al.push(['w', `Powered down ${idle}× after no movement`, 'Wear-time gap logged. Tracked as an adherence and apathy signal, not as non-compliance.']);
+  const idleEvents = ev.filter(e => e.type === EV.IDLE_OFF);
+  const wakeEvents = ev.filter(e => e.type === EV.WEAR_ON);
+  if (idleEvents.length) {
+    const last = idleEvents[idleEvents.length - 1];
+    const resumed = wakeEvents.some(w => w.ts > last.ts);
+    al.push([resumed ? 'w' : 'r',
+      resumed
+        ? `Set down ${idleEvents.length}× today, picked up again`
+        : `Set down at ${Fmt.hm(last.ts)} and not picked up since`,
+      resumed
+        ? 'Normal — he takes them off to nap or wash. Logged as wear-time, which is what the index uses.'
+        : 'If this happens two days running, it is worth a call. Falling wear time is one of the earliest signs of apathy, which is a symptom rather than a choice — so this is information for you, not something to tell him off about.']);
   }
   if (!s.settings.cameraEnabled) {
     al.push(['r', 'Camera switch is off', 'He was told: “Camera off. I can still remind you about your medicine.” Face recognition is paused until it is switched back on.']);

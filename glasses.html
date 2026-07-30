@@ -40,6 +40,9 @@
         <div class="privacy">
           <span class="led" id="led"></span><span id="ledTxt">CAMERA IDLE</span>
         </div>
+        <div style="position:absolute;top:10px;right:10px">
+          <span class="pill" id="wearBadge">NOT RUNNING</span>
+        </div>
         <div class="placeholder" id="ph">
           <div style="font-size:15px;color:#c9c1b9;font-weight:600">Camera off</div>
           <div style="max-width:340px;line-height:1.5">
@@ -169,6 +172,7 @@
 <script src="js/cues.js"></script>
 <script src="js/cti.js"></script>
 <script src="js/maas.js"></script>
+<script src="js/motion.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 /* ============================================================================
@@ -253,7 +257,11 @@ Schedule.onFire = (kind, d) => {
 };
 // the scheduler respects the reminders purpose independently of the camera
 const _tick = Schedule.tick.bind(Schedule);
-Schedule.tick = async function () { if (mayRemind()) return _tick(); };
+Schedule.tick = async function () {
+  // Do not read a medication reminder to glasses lying on a table. It is not
+  // just wasted — he never heard it, but the log would say he was told.
+  if (mayRemind() && !poweredDown) return _tick();
+};
 
 /* retrieval-window progress bar */
 function runWindow(ms) {
@@ -284,13 +292,20 @@ $('btnStart').onclick = async () => {
     $('btnStop').disabled = false;
     Store.wearOn();
     loopOn = true;
+    poweredDown = false;
     logLine('Glasses on. Models loaded locally, no network calls.', 'ok');
     if (!mayRecognise()) {
       logLine('RECOGNITION BLOCKED — consent not recorded, or assent paused. Reminders still run. Open the Privacy page.', 'bad');
     }
+    // Real accelerometer if the device has one (a phone will), camera activity
+    // if not (a laptop will not). This click is also the user gesture iOS
+    // requires before it will hand over the motion sensor.
+    const src = await Motion.start(Store.s.settings.demoSpeed ? 45000 : 20 * 60 * 1000);
+    logLine(`Wear detection: ${Motion.describe()}${src === 'camera' ? ' — no accelerometer on this device' : ''}.`,
+            src === 'accelerometer' ? 'ok' : '');
+    updateWearBadge();
     Schedule.start(20000);
     loop();
-    resetIdle();
   } catch (e) {
     console.error(e);
     $('phProg').textContent = 'Could not start: ' + e.message;
@@ -301,7 +316,9 @@ $('btnStart').onclick = async () => {
 
 $('btnStop').onclick = () => {
   loopOn = false;
+  poweredDown = false;
   Schedule.stop();
+  Motion.stop();
   Vision.stopCamera();
   Store.wearOff();
   $('ph').style.display = 'grid';
@@ -335,7 +352,8 @@ $('btnCam').onclick = async () => {
 async function loop() {
   if (!loopOn) return;
   try {
-    if (Store.s.settings.cameraEnabled && mayRecognise()) {
+    // Powered down means off the face — nothing should be spoken to an empty room.
+    if (Store.s.settings.cameraEnabled && mayRecognise() && !poweredDown) {
       const matches = await Vision.detectOnce();
       Vision.draw(matches);
       if (matches.length) {
@@ -354,18 +372,48 @@ async function loop() {
   setTimeout(() => requestAnimationFrame(loop), 260);
 }
 
-/* idle detection -> power down -> notify the caregiver.
-   Framed as an adherence + apathy sensor, not as policing. */
+/* Wear detection.
+   Worn glasses are never perfectly still — a head micro-moves constantly. So
+   sustained stillness means they are on a table, not on his face. Powered down
+   on stillness, powered back up the moment they are picked up, exactly like a
+   phone. Framed as an adherence and apathy sensor, never as policing. */
+let poweredDown = false;
+
+Motion.onStill = () => {
+  if (!loopOn || poweredDown) return;
+  poweredDown = true;
+  Store.wearOff(true);
+  logLine(`Still for ${Store.s.settings.demoSpeed ? '45s' : '20 min'} — powered down. Caregiver notified.`, 'bad');
+  updateWearBadge();
+  render();
+};
+
+Motion.onWake = () => {
+  if (!loopOn || !poweredDown) return;
+  poweredDown = false;
+  Store.wearOn();
+  logLine('Picked up again — powered back on.', 'ok');
+  updateWearBadge();
+  render();
+};
+
 function resetIdle() {
-  clearTimeout(idleTimer);
-  const ms = Store.s.settings.demoSpeed ? 45000 : 20 * 60 * 1000;
-  idleTimer = setTimeout(() => {
-    if (!loopOn) return;
-    Store.wearOff(true);
-    logLine('No movement — powered down. Caregiver notified (wear-time signal).', 'bad');
-    render();
-  }, ms);
+  // camera activity is the fallback signal when there is no accelerometer
+  Motion.noteCameraActivity();
 }
+
+function updateWearBadge() {
+  const el = $('wearBadge');
+  if (!el) return;
+  const still = Math.round(Motion.stillFor() / 1000);
+  el.textContent = poweredDown
+    ? `POWERED DOWN · still ${still}s`
+    : `WORN · ${Motion.describe()}`;
+  el.className = 'pill ' + (poweredDown ? 'r' : 'g');
+}
+setInterval(() => {
+  if (loopOn) { Motion.checkStill(); updateWearBadge(); }
+}, 2000);
 
 /* ---------------------------------------------------- manual controls */
 $('btnTap').onclick = () => Cues.tellAgain(lastSpoken);
