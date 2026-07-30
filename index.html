@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-SG">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -9,19 +9,20 @@
 </head>
 <body>
 
-<div class="topbar">
+<a href="#main" class="skip">Skip to content</a>
+<header class="topbar">
   <div class="brand">ING<em>A</em>T</div>
   <div class="tag">Working prototype &middot; Tech4City 2026</div>
-  <nav>
+  <nav aria-label="Main">
     <a href="index.html" class="on">Home</a>
     <a href="family.html">Setup</a>
     <a href="glasses.html">Glasses</a>
     <a href="care.html">Caregiver</a>
     <a href="privacy.html">Privacy</a>
   </nav>
-</div>
+</header>
 
-<div class="wrap">
+<main class="wrap" id="main">
 
   <div style="max-width:680px;margin-bottom:20px">
     <h1 style="font-size:31px">Smart glasses that remember for him &mdash; and turn the forgetting into a measurement.</h1>
@@ -225,7 +226,7 @@
     demonstrated rather than asserted.
   </div>
 
-</div>
+</main>
 
 <script src="js/face-api.min.js"></script>
 <script src="js/store.js"></script>
@@ -309,5 +310,6 @@ $('reset').onclick = () => {
 $('seedNote').textContent = Store.s.people.length
   ? `${Store.s.people.length} people already in the library.` : '';
 </script>
+<div id="live" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

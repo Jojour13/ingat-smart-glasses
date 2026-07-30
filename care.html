@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-SG">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -9,19 +9,20 @@
 </head>
 <body>
 
-<div class="topbar noprint">
+<a href="#main" class="skip">Skip to content</a>
+<header class="topbar noprint">
   <div class="brand">ING<em>A</em>T</div>
   <div class="tag">Caregiver dashboard</div>
-  <nav>
+  <nav aria-label="Main">
     <a href="index.html">Home</a>
     <a href="family.html">Setup</a>
     <a href="glasses.html">Glasses</a>
     <a href="care.html" class="on">Caregiver</a>
     <a href="privacy.html">Privacy</a>
   </nav>
-</div>
+</header>
 
-<div class="wrap">
+<main class="wrap" id="main">
 
   <div class="row" style="margin-bottom:16px">
     <div>
@@ -186,7 +187,7 @@
   <!-- micro-lesson, fires on a detected repetition spike -->
   <div id="lesson" style="margin-top:16px"></div>
 
-</div>
+</main>
 
 <script src="js/face-api.min.js"></script>
 <script src="js/store.js"></script>
@@ -591,5 +592,6 @@ Store.onChange(render);
 render();
 setInterval(() => { $('kWear').textContent = Fmt.dur(Store.wearMsToday()); }, 15000);
 </script>
+<div id="live" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

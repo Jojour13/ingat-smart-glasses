@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-SG">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -9,26 +9,28 @@
 </head>
 <body>
 
-<div class="topbar">
+<a href="#main" class="skip">Skip to content</a>
+<header class="topbar">
   <div class="brand">ING<em>A</em>T</div>
   <div class="tag">Glasses view &middot; operator console</div>
-  <nav>
+  <nav aria-label="Main">
     <a href="index.html">Home</a>
     <a href="family.html">Setup</a>
     <a href="glasses.html" class="on">Glasses</a>
     <a href="care.html">Caregiver</a>
     <a href="privacy.html">Privacy</a>
   </nav>
-</div>
+</header>
 
 <!-- Phone standing in for the glasses: black screen, camera and audio still live -->
-<div class="wearer" id="wearer">
+<div class="wearer" id="wearer" role="dialog" aria-modal="true"
+     aria-label="Wearer mode — screen off, camera and audio still running" hidden>
   <span class="dot" id="wDot"></span>
-  <div class="heard" id="wHeard"></div>
-  <div class="hint" id="wHint">tap to leave wearer mode</div>
+  <div class="heard" id="wHeard" aria-live="polite"></div>
+  <button type="button" class="hint" id="wHint">Tap, or press Escape, to leave wearer mode</button>
 </div>
 
-<div class="wrap">
+<main class="wrap" id="main">
 
   <div class="note w" style="margin-bottom:16px">
     <b>This screen is not what the wearer sees.</b> The wearer has no display —
@@ -203,7 +205,7 @@
       </div>
     </div>
   </div>
-</div>
+</main>
 
 <script src="js/face-api.min.js"></script>
 <script src="js/store.js"></script>
@@ -501,29 +503,52 @@ setInterval(() => {
    display, so neither should the stand-in: black the screen, keep the camera
    and the audio running underneath. A wake lock stops the phone sleeping
    mid-demo, which it otherwise will. */
-let wakeLock = null;
+let wakeLock = null, wearerReturnFocus = null;
 
 async function enterWearer() {
+  wearerReturnFocus = document.activeElement;
+  $('wearer').hidden = false;
   $('wearer').classList.add('on');
+  // The page behind is invisible but was still tabbable — a keyboard user
+  // could reach Stop, or Erase, on a black screen.
+  document.querySelector('.wrap').inert = true;
+  document.querySelector('.topbar').inert = true;
+  $('wHint').focus();
   try {
     if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
   } catch (_) { /* fullscreen is a nicety, not a requirement */ }
   try {
     if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
-  } catch (_) { /* Safari on older iOS has no wake lock */ }
-  logLine('Wearer mode — screen off, camera and audio still running.', 'hi');
-  setTimeout(() => $('wHint').style.opacity = '0', 4000);
+  } catch (_) { /* older iOS has no wake lock */ }
+  logLine('Wearer mode — screen off, camera and audio still running. Escape to leave.', 'hi');
 }
 
 async function exitWearer() {
   $('wearer').classList.remove('on');
-  $('wHint').style.opacity = '';
+  $('wearer').hidden = true;
+  document.querySelector('.wrap').inert = false;
+  document.querySelector('.topbar').inert = false;
   try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (_) {}
   try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch (_) {}
+  if (wearerReturnFocus) { try { wearerReturnFocus.focus(); } catch (_) {} }
 }
 
 $('btnWearer').onclick = enterWearer;
 $('wearer').onclick = exitWearer;
+
+// Escape must work. Without it, a presenter on a laptop with no touchscreen
+// and a mouse that is not where they expect has a black screen and no way out.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('wearer').classList.contains('on')) {
+    e.preventDefault();
+    exitWearer();
+  }
+});
+// Escape also exits fullscreen on its own, which would otherwise leave the
+// black overlay up in a windowed page.
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && $('wearer').classList.contains('on')) exitWearer();
+});
 document.addEventListener('visibilitychange', async () => {
   // a wake lock is dropped when the tab is backgrounded; take it again
   if (document.visibilityState === 'visible' && $('wearer').classList.contains('on') && !wakeLock) {
@@ -664,8 +689,20 @@ $('lang').onchange = e => { Store.s.patient.language = e.target.value; Store.sav
 $('rate').onchange = e => { Store.s.patient.speechRate = +e.target.value; Store.save(); };
 
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-  if (e.code === 'Space') { e.preventDefault(); Cues.tellAgain(lastSpoken); }
+  const t = e.target;
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable;
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+
+  // Space is how a keyboard user ACTIVATES a focused button. Swallowing it
+  // globally meant tabbing to "Start glasses" and pressing space fired
+  // "tell me again" instead, and the button never worked at all.
+  const onControl = t.closest('button, a[href], [tabindex]:not([tabindex="-1"])');
+
+  if (e.code === 'Space') {
+    if (onControl) return;
+    e.preventDefault();
+    Cues.tellAgain(lastSpoken);
+  }
   else if (e.key.toLowerCase() === 'g') Listener.confirm(true);
   else if (e.key.toLowerCase() === 'n') Listener.confirm(false);
   else if (/^[1-9]$/.test(e.key)) {
@@ -747,5 +784,6 @@ render();
 setInterval(() => { $('kWear').textContent = Fmt.dur(Store.wearMsToday()); }, 15000);
 logLine('Console ready. ' + (Listener.supported ? 'Speech recognition available.' : 'No speech recognition — use G / N.'), '');
 </script>
+<div id="live" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

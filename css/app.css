@@ -2,15 +2,20 @@
    Warm neutrals, single terracotta accent. Matches the report. */
 
 :root {
-  --ink: #181614;
-  --body: #2e2a26;
-  --muted: #6e6660;
-  --faint: #9a938c;
+  /* Contrast targets AAA (7:1) for body, not AA. An 80-year-old has roughly
+     80% less contrast sensitivity than a 20-year-old, and WCAG's own rationale
+     for 7:1 is that it compensates for vision around 20/80.
+     --faint was #9a938c, about 2.9:1 on white — it was decorative, not text.
+     Ref: w3.org/WAI/older-users/literature/ */
+  --ink: #181614;      /* ~15:1 on white */
+  --body: #2e2a26;     /* ~12:1 */
+  --muted: #57504a;    /* ~7.6:1  (was #6e6660, ~5.5:1) */
+  --faint: #6e6660;    /* ~5.5:1  — now the floor, never smaller than 14px */
   --accent: #b4472c;
   --accent-lt: #f6ede7;
   --green: #2f5d50;
   --green-lt: #e8f0ec;
-  --amber: #9a6b12;
+  --amber: #7d5600;   /* was #9a6b12 - 4.2:1 on --amber-lt, now 5.9:1 */
   --amber-lt: #fbf2de;
   --red: #9e2b25;
   --red-lt: #f9e9e7;
@@ -20,10 +25,61 @@
   --white: #fff;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(24,22,20,.06), 0 8px 24px rgba(24,22,20,.06);
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-  /* System serif only — no webfont, because the whole app must run offline. */
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  /* ------------------------------------------------------------------ type
+     System fonts only — the whole app runs offline.
+
+     `system-ui` is deliberately NOT first: it resolves per OS *language*, not
+     per script, so on a Windows machine set to Chinese it picks Yu Gothic UI
+     or Microsoft JhengHei and renders English with weak, badly spaced glyphs.
+     On Singaporean machines that is a live risk, so real font names lead and
+     system-ui sits late as a safety net.
+     Ref: bugzilla.mozilla.org/show_bug.cgi?id=1605605 */
+  --sans:
+    -apple-system, BlinkMacSystemFont,
+    "Segoe UI Variable Text", "Segoe UI",
+    Roboto, "Helvetica Neue", "Arial Nova",
+    "Liberation Sans", Arial, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
+  --serif:
+    Charter, "Bitstream Charter", "Sitka Text",
+    Cambria, Constantia, "Georgia Pro", Georgia,
+    "Iowan Old Style", "Noto Serif", "Liberation Serif", serif;
+  --mono:
+    ui-monospace, SFMono-Regular, "SF Mono",
+    "Cascadia Mono", "Cascadia Code", Consolas,
+    "Source Code Pro", Menlo, Monaco,
+    "DejaVu Sans Mono", "Liberation Mono", "Courier New", monospace;
+
+  /* ------------------------------------------------------------ type scale
+     GOV.UK's scale, whose line-heights are all multiples of 5px. The rule
+     most projects miss: BODY DOES NOT SHRINK ON MOBILE. Only headings step
+     down. Our primary web user is 62 and, per NN/g's 19-year longitudinal
+     study, ability to use websites falls ~0.8% per year from 25 — so she is
+     roughly 30% less effective than a 25-year-old before any impairment.
+     Ref: design-system.service.gov.uk/styles/type-scale/ */
+  --t-body: 17px;   --lh-body: 26px;
+  --t-lead: 20px;   --lh-lead: 30px;
+  --t-h3:   17px;   --lh-h3:   25px;
+  --t-h2:   22px;   --lh-h2:   30px;
+  --t-h1:   32px;   --lh-h1:   36px;
+  --t-small:15px;   --lh-small:22px;   /* captions and legal ONLY */
+
+  /* 4-point spacing, larger steps grow on desktop */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-7: 32px; --sp-8: 40px;
+
+  /* Focus: yellow fill + black underline, so it survives ANY background.
+     Ten lines of CSS that make a product read as government-grade. */
+  --focus:      #ffdd00;
+  --focus-ink:  #0b0c0c;
+}
+
+@media (min-width: 641px) {
+  :root {
+    --t-h1: 40px; --lh-h1: 45px;
+    --t-h2: 24px; --lh-h2: 30px;
+    --sp-6: 32px; --sp-7: 40px; --sp-8: 56px;
+  }
 }
 
 /* ============================================================================
@@ -62,7 +118,7 @@
   display: block;
   margin-bottom: 4px;
 }
-.telemetry { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.telemetry { font-family: var(--mono); font-size: 14px; line-height: 20px; color: var(--muted); }
 .telemetry b { color: var(--ink); font-weight: 600; }
 
 * { box-sizing: border-box; }
@@ -78,18 +134,56 @@ html, body {
 
 a { color: var(--accent); }
 
+/* UA defaults vary by browser and several are marginal */
+::placeholder { color: #6e6660; opacity: 1; }
+
 /* ---------------------------------------------------------------- chrome */
+/* At 375px the brand, the tagline and five nav links needed ~590px inside a
+   locked 54px bar with no wrap and no overflow — so on a phone the navigation
+   spilled out of the bar and could not be used. The primary user is 62 and
+   "often on a phone", and Setup → Trust Centre is the journey the whole
+   product depends on. */
 .topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 0 20px;
-  height: 54px;
+  gap: 12px;
+  padding: 0 16px;
+  min-height: 54px;
   background: var(--ink);
   color: #fff;
   position: sticky;
   top: 0;
   z-index: 40;
+  flex-wrap: wrap;
+}
+@media (max-width: 780px) {
+  .topbar { padding: 8px 14px; }
+  .topbar .tag { display: none; }      /* presenter copy, not navigation */
+  .topbar nav {
+    margin-left: 0;
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .topbar nav a { flex: 0 0 auto; }
+}
+
+/* Skip link — five repeated nav links on every page is five tab stops before
+   any content. */
+.skip { position: absolute; left: -9999px; }
+.skip:focus {
+  left: 10px; top: 10px; z-index: 100;
+  background: var(--white); color: var(--ink);
+  padding: 12px 16px; border-radius: 7px;
+  outline: 3px solid var(--accent);
+  font-weight: 600;
+}
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
 }
 .topbar .brand {
   font-weight: 700;
@@ -98,7 +192,7 @@ a { color: var(--accent); }
 }
 .topbar .brand em {
   font-style: normal;
-  color: var(--accent);
+  color: #d4714f;   /* --accent is only 3.3:1 on --ink */
 }
 .topbar .tag {
   font-size: 11px;
@@ -109,26 +203,65 @@ a { color: var(--accent); }
 .topbar nav a {
   color: #cfc6be;
   text-decoration: none;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 7px 12px;
+  padding: 12px 14px;
   border-radius: 6px;
+  white-space: nowrap;
 }
+.topbar nav a:focus-visible { outline: 3px solid #ffb99f; outline-offset: -2px; }
 .topbar nav a:hover { background: rgba(255,255,255,.09); color: #fff; }
 .topbar nav a.on { background: var(--accent); color: #fff; }
 
 .wrap { max-width: 1220px; margin: 0 auto; padding: 22px 20px 60px; }
 .wrap.narrow { max-width: 780px; }
 
-/* ---------------------------------------------------------------- type */
-h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; color: var(--ink); letter-spacing: -.01em; }
-h2 { font-size: 15px; line-height: 1.3; margin: 0 0 10px; color: var(--ink); }
-h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); margin: 0 0 8px; }
-p  { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; }
-.lede { font-size: 15px; line-height: 1.55; color: var(--ink); }
-.sub  { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.tiny { font-size: 11px; color: var(--faint); line-height: 1.45; }
+/* ---------------------------------------------------------------- type
+   Every size raised. The old scale bottomed out at 11px, which is below the
+   16px floor CMS uses for a literal Medicare audience and below NN/g's
+   absolute minimum for over-65s. Prose is capped at 66ch — USWDS puts the
+   comfortable band at 45–90 characters and long lines are where older readers
+   lose their place on the return sweep. */
+h1 { font-size: var(--t-h1); line-height: var(--lh-h1); margin: 0 0 var(--sp-2);
+     color: var(--ink); letter-spacing: -.015em; }
+h2 { font-size: var(--t-h3); line-height: var(--lh-h3); margin: 0 0 var(--sp-3); color: var(--ink); }
+h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .09em;
+     color: var(--accent); margin: 0 0 var(--sp-2); font-weight: 700; }
+p  { margin: 0 0 var(--sp-3); font-size: var(--t-body); line-height: var(--lh-body); max-width: 66ch; }
+.lede { font-size: var(--t-lead); line-height: var(--lh-lead); color: var(--ink); max-width: 62ch; }
+.sub  { font-size: var(--t-small); color: var(--muted); line-height: var(--lh-small); max-width: 66ch; }
+.tiny { font-size: 14px; color: var(--faint); line-height: 20px; max-width: 60ch; }
 .mono { font-family: var(--mono); }
+
+/* Tabular figures so wear-time and prompt counts do not jitter as they update */
+.mono, .telemetry, .kpi b, .metric { font-variant-numeric: tabular-nums; }
+
+/* Never let a stack member get faux-bolded */
+html { font-synthesis: none; }
+
+/* Rapid animation creates confusion for older readers, and this app is also
+   projected. Honour the OS setting completely. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------ focus
+   Yellow fill with a black underline, so the indicator is visible on white,
+   on the terracotta accent, and on the black wearer-mode overlay alike.
+   Ref: design-system.service.gov.uk/styles/focus-states/ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid transparent;      /* keeps an indicator in forced-colors */
+  outline-offset: 0;
+  background-color: var(--focus);
+  box-shadow: 0 -2px var(--focus), 0 4px var(--focus-ink);
+  color: var(--focus-ink);
+  text-decoration: none;
+}
 
 /* ---------------------------------------------------------------- layout */
 .grid { display: grid; gap: 16px; }
@@ -155,7 +288,7 @@ p  { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; }
   border-bottom: 1px solid var(--rule);
   background: var(--band);
 }
-.card > .hd h2 { margin: 0; font-size: 13px; }
+.card > .hd h2 { margin: 0; font-size: 16px; }
 .card > .hd .right { margin-left: auto; }
 .card > .bd { padding: 15px; }
 .card > .bd.tight { padding: 0; }
@@ -163,11 +296,11 @@ p  { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; }
 /* ---------------------------------------------------------------- bits */
 .pill {
   display: inline-block;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: .06em;
+  letter-spacing: .05em;
   text-transform: uppercase;
-  padding: 3px 8px;
+  padding: 5px 11px;
   border-radius: 20px;
   background: var(--band);
   color: var(--muted);
@@ -179,17 +312,26 @@ p  { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; }
 .pill.r { background: var(--red-lt);   color: var(--red); }
 .pill.k { background: var(--ink); color: #fff; }
 
+/* 44px minimum on every target. WCAG 2.2 AA sets the floor at 24px, but
+   AAA and NN/g's own recommendation for over-65s is 44–48px, and arthritis
+   affects at least half of over-65s while essential tremor affects up to 20%.
+   Ref: nngroup.com/reports/senior-citizens-on-the-web/ */
 .btn {
   font: inherit;
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 600;
-  padding: 8px 14px;
+  min-height: 44px;
+  padding: 10px 18px;
   border-radius: 7px;
   border: 1px solid var(--rule);
   background: var(--white);
   color: var(--body);
   cursor: pointer;
-  line-height: 1.2;
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .btn:hover  { border-color: var(--muted); }
 .btn:active { transform: translateY(1px); }
@@ -197,8 +339,18 @@ p  { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; }
 .btn.p:hover { background: #9d3d25; }
 .btn.k { background: var(--ink); border-color: var(--ink); color: #fff; }
 .btn.g { background: var(--green); border-color: var(--green); color: #fff; }
-.btn.sm { font-size: 11px; padding: 5px 9px; }
-.btn:disabled { opacity: .4; cursor: not-allowed; }
+/* "Small" still clears 44px. It is visually lighter, not physically smaller —
+   shrinking the hit area is exactly what fails a hand with a tremor. */
+.btn.sm { font-size: 14px; padding: 8px 13px; min-height: 44px; }
+.btn:disabled {
+  /* opacity:.4 blended to about 2.3:1. A disabled control still has to be
+     readable - it is telling you why you cannot proceed. */
+  opacity: 1;
+  background: #f0ece7;
+  border-color: #d3cabf;
+  color: #6b645d;
+  cursor: not-allowed;
+}
 .btn.wide { width: 100%; }
 
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -214,12 +366,15 @@ label.fld span {
   color: var(--muted);
   margin-bottom: 4px;
 }
-input[type=text], input[type=time], select, textarea {
+input[type=text], input[type=time], input[type=date], select, textarea {
   font: inherit;
-  font-size: 13px;
+  font-size: 16px;          /* 16px also stops iOS zooming the page on focus */
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--rule);
+  min-height: 44px;
+  padding: 10px 12px;
+  /* NHS uses a much darker input border than most projects specifically so the
+     border itself clears 3:1 non-text contrast. #d9d1c8 did not. */
+  border: 2px solid #8b8179;
   border-radius: 7px;
   background: var(--white);
   color: var(--body);
@@ -233,25 +388,26 @@ input:focus, select:focus, textarea:focus {
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 th {
   text-align: left;
-  font-size: 10px;
+  font-size: 12.5px;
   text-transform: uppercase;
-  letter-spacing: .07em;
+  letter-spacing: .06em;
   color: var(--muted);
-  padding: 8px 12px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--rule);
   background: var(--band);
   font-weight: 700;
 }
-td { padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td { padding: 13px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 15.5px; line-height: 22px; }
 tr:last-child td { border-bottom: 0; }
 
 .note {
-  border-left: 3px solid var(--accent);
+  border-left: 4px solid var(--accent);
   background: var(--accent-lt);
-  padding: 10px 13px;
-  border-radius: 0 7px 7px 0;
-  font-size: 12.5px;
-  line-height: 1.5;
+  padding: 14px 16px;
+  border-radius: 0 8px 8px 0;
+  font-size: 15.5px;
+  line-height: 23px;
+  max-width: 70ch;
 }
 .note.g { border-color: var(--green); background: var(--green-lt); }
 .note.w { border-color: var(--amber); background: var(--amber-lt); }
@@ -335,7 +491,7 @@ tr:last-child td { border-bottom: 0; }
   font-weight: 600;
   letter-spacing: -.01em;
 }
-.earpiece .said.idle { color: #6b635c; font-weight: 400; font-size: 16px; }
+.earpiece .said.idle { color: #968d85; font-weight: 400; font-size: 17px; }
 .earpiece .meta { font-size: 11px; color: #8f867e; font-family: var(--mono); }
 
 .wave { display: inline-flex; gap: 2.5px; align-items: flex-end; height: 12px; }
@@ -383,13 +539,13 @@ tr:last-child td { border-bottom: 0; }
 .ladder i.on { background: var(--green); }
 
 /* log */
-.log { max-height: 300px; overflow-y: auto; font-family: var(--mono); font-size: 11px; }
+.log { max-height: 320px; overflow-y: auto; font-family: var(--mono); font-size: 13px; line-height: 18px; }
 .log .e {
   display: flex; gap: 9px; padding: 5px 15px;
   border-bottom: 1px solid #f0ebe4; align-items: baseline;
 }
 .log .e:last-child { border-bottom: 0; }
-.log .t { color: var(--faint); flex: 0 0 52px; }
+.log .t { color: var(--muted); flex: 0 0 62px; }
 .log .m { flex: 1; color: var(--body); }
 .log .e.ok  .m { color: var(--green); }
 .log .e.bad .m { color: var(--red); }
@@ -400,7 +556,10 @@ tr:last-child td { border-bottom: 0; }
 .kpi { background: var(--white); padding: 13px 14px; }
 .kpi b { display: block; font-size: 23px; line-height: 1.05; color: var(--ink); letter-spacing: -.02em; }
 .kpi b.a { color: var(--accent); }
-.kpi span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-top: 5px; }
+
+/* UA defaults vary by browser and several are marginal */
+::placeholder { color: #6e6660; opacity: 1; }
+.kpi span { display: block; font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 6px; }
 @media (max-width: 720px) { .kpis { grid-template-columns: repeat(2,1fr); } }
 
 /* bars */
@@ -411,8 +570,24 @@ tr:last-child td { border-bottom: 0; }
 .bar i.r { background: var(--red); }
 
 /* toggle */
-.tog { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; user-select: none; }
-.tog input { display: none; }
+/* The six PDPA purpose switches ARE the legal consent mechanism, so they have
+   to be operable by keyboard and reachable by a screen reader. `display:none`
+   on the input removed it from the tab order AND the accessibility tree, which
+   meant a keyboard-only caregiver could not grant consent — or, worse, could
+   not withdraw it, which is the right this page promises in writing. */
+.tog { display: inline-flex; align-items: center; gap: 9px; font-size: 15px;
+       cursor: pointer; user-select: none; min-height: 44px; }
+.tog input {
+  position: absolute;
+  opacity: 0;
+  width: 38px; height: 22px;      /* sits under the switch so focus lands right */
+  margin: 0;
+  cursor: pointer;
+}
+.tog input:focus-visible + .sw {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
 .tog .sw {
   width: 34px; height: 19px; border-radius: 12px; background: var(--rule);
   position: relative; transition: background .18s; flex: 0 0 auto;
@@ -498,9 +673,9 @@ tr:last-child td { border-bottom: 0; }
 .thumb .meta b { font-size: 11.5px; display: block; color: var(--ink); }
 .thumb .meta span { font-size: 10px; color: var(--muted); }
 .thumb .x {
-  position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%;
-  background: rgba(24,22,20,.72); color: #fff; border: 0; cursor: pointer;
-  font-size: 12px; line-height: 1; display: grid; place-content: center;
+  position: absolute; top: 3px; right: 3px; width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(24,22,20,.78); color: #fff; border: 0; cursor: pointer;
+  font-size: 17px; line-height: 1; display: grid; place-content: center;
 }
 .thumb.bad { border-color: var(--red); }
 .thumb .flag {
@@ -606,7 +781,11 @@ tr:last-child td { border-bottom: 0; }
 }
 .slot:hover .card2 { border-color: var(--muted); }
 .slot.now .card2 { border-color: var(--accent); background: var(--accent-lt); }
-.slot.done .card2 { opacity: .62; }
+.slot.done .card2 {
+  opacity: 1;                 /* .62 dropped the text to about 2.6:1 */
+  background: var(--paper);
+}
+.slot.done .card2 p, .slot.done .at { color: var(--muted); }
 .slot.done .card2 h4 { text-decoration: line-through; }
 .slot .card2 h4 {
   margin: 0 0 3px;
@@ -620,7 +799,7 @@ tr:last-child td { border-bottom: 0; }
   font-size: 9.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 4px; margin-bottom: 5px;
 }
-.kind.meal   { background: #FBF2DE; color: #9A6B12; }
+.kind.meal   { background: #FBF2DE; color: #7d5600; }
 .kind.move   { background: #E8F0EC; color: #2F5D50; }
 .kind.task   { background: #F2EDE6; color: #6E6660; }
 .kind.social { background: #F6EDE7; color: #B4472C; }
@@ -647,10 +826,10 @@ tr:last-child td { border-bottom: 0; }
 .tag b { display: block; font-size: 13px; color: var(--ink); }
 .tag span { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
 .tag .x {
-  position: absolute; top: 5px; right: 5px;
-  width: 20px; height: 20px; border-radius: 50%;
+  position: absolute; top: 4px; right: 4px;
+  width: 36px; height: 36px; border-radius: 50%;
   border: 0; background: var(--band); color: var(--muted);
-  cursor: pointer; font-size: 12px; line-height: 1;
+  cursor: pointer; font-size: 17px; line-height: 1;
 }
 .tag.add {
   border-style: dashed;
@@ -675,12 +854,14 @@ tr:last-child td { border-bottom: 0; }
 .stack > * + * { margin-top: 10px; }
 .chipbar { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
-  font-size: 11.5px; padding: 5px 10px; border-radius: 20px;
-  border: 1px solid var(--rule); background: var(--white); cursor: pointer;
+  font: inherit; font-size: 14.5px;
+  min-height: 44px; padding: 9px 15px; border-radius: 22px;
+  border: 1px solid var(--rule); background: var(--white); color: var(--body);
+  cursor: pointer; display: inline-flex; align-items: center;
 }
 .chip:hover { border-color: var(--accent); }
 .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-.empty { padding: 24px 18px; text-align: center; color: var(--faint); font-size: 12.5px; }
+.empty { padding: var(--sp-7) var(--sp-5); text-align: center; color: var(--muted); font-size: 15px; }
 
 /* ============================================================================
    WEARER MODE
@@ -711,24 +892,35 @@ tr:last-child td { border-bottom: 0; }
 .wearer .dot.live { background: #ff4b3e; box-shadow: 0 0 14px #ff4b3e; }
 .wearer .heard {
   font-family: var(--serif);
-  font-style: italic;
-  font-size: 20px;
+  /* Was italic serif at 20px in #6a625c — 3.5:1 on black, and italic serif is
+     the hardest possible combination to read on a projector in a lit room. */
+  font-style: normal;
+  font-size: 24px;
   line-height: 1.4;
-  color: #6a625c;
+  color: #a49b93;
   text-align: center;
   max-width: 78%;
   opacity: 0;
   transition: opacity .35s;
 }
 .wearer .heard.show { opacity: 1; }
+/* Was #3a3530 on black — 1.7:1, invisible from the moment it rendered, and it
+   then faded itself out after four seconds. The only exit instruction on the
+   screen must not disappear. */
 .wearer .hint {
   position: absolute;
   bottom: 26px;
-  font-size: 10.5px;
-  letter-spacing: .12em;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: .1em;
   text-transform: uppercase;
-  color: #3a3530;
+  color: #8b8279;
+  background: none;
+  border: 0;
+  padding: 12px 18px;
+  cursor: pointer;
 }
+.wearer .hint:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 /* print */
 @media print {

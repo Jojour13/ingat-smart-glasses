@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-SG">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -9,19 +9,20 @@
 </head>
 <body>
 
-<div class="topbar noprint">
+<a href="#main" class="skip">Skip to content</a>
+<header class="topbar noprint">
   <div class="brand">ING<em>A</em>T</div>
   <div class="tag">Privacy &amp; Trust Centre</div>
-  <nav>
+  <nav aria-label="Main">
     <a href="index.html">Home</a>
     <a href="family.html">Setup</a>
     <a href="glasses.html">Glasses</a>
     <a href="care.html">Caregiver</a>
     <a href="privacy.html" class="on">Privacy</a>
   </nav>
-</div>
+</header>
 
-<div class="wrap">
+<main class="wrap" id="main">
 
   <div style="max-width:700px;margin-bottom:22px">
     <h1>A camera on your father's face is a serious thing.</h1>
@@ -252,7 +253,7 @@
       </div>
     </div>
   </div>
-</div>
+</main>
 
 <script src="js/store.js"></script>
 <script src="js/speech.js"></script>
@@ -476,5 +477,6 @@ function render() {
 Store.onChange(render);
 render();
 </script>
+<div id="live" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>
