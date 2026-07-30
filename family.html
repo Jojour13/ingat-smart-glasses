@@ -337,6 +337,7 @@ function sayPreview(el, text) {
 
 /* ============================================================== 01 PEOPLE */
 let queue = [];
+let scanAbort = null;
 
 $('drop').onclick = () => $('files').click();
 ['dragenter','dragover'].forEach(t => $('drop').addEventListener(t, e => {
@@ -362,14 +363,26 @@ async function intake(files) {
   }
 
   const t0 = performance.now();
-  let faceCount = 0, emptyPhotos = 0, groupPhotos = 0;
+  let faceCount = 0, emptyPhotos = 0, groupPhotos = 0, timedOut = 0;
   const errors = [];
+  scanAbort = { aborted: false };
+  const myAbort = scanAbort;
 
-  for (let i = 0; i < imgs.length; i++) {
+  const status = (i, verb, extra = '') => {
     const pct = Math.round(i / imgs.length * 100);
+    const secs = ((performance.now() - t0) / 1000).toFixed(0);
     $('dropStatus').innerHTML =
       `<div class="bar" style="margin-bottom:5px"><i style="width:${pct}%"></i></div>`
-      + `opening <b>${i + 1}/${imgs.length}</b> &mdash; ${esc(imgs[i].name.slice(0, 28))}`;
+      + `${verb} <b>${i + 1}/${imgs.length}</b> &mdash; ${esc(imgs[i].name.slice(0, 26))}`
+      + ` <span class="tiny">${secs}s elapsed${extra}</span>`
+      + ` <button class="btn sm" id="cancelScan" style="margin-left:8px">Cancel</button>`;
+    const cb = $('cancelScan');
+    if (cb) cb.onclick = () => { myAbort.aborted = true; };
+  };
+
+  for (let i = 0; i < imgs.length; i++) {
+    if (myAbort.aborted) break;
+    status(i, 'opening');
 
     const loaded = await Vision.loadImage(imgs[i]);
     if (loaded.error) {
@@ -377,14 +390,18 @@ async function intake(files) {
       continue;
     }
 
-    $('dropStatus').innerHTML =
-      `<div class="bar" style="margin-bottom:5px"><i style="width:${pct}%"></i></div>`
-      + `looking for faces in <b>${i + 1}/${imgs.length}</b> &mdash; ${esc(imgs[i].name.slice(0, 28))}`;
+    status(i, 'looking for faces in', Vision.backend === 'cpu' ? ' · CPU, slower' : '');
     await new Promise(r => setTimeout(r, 0));   // let the browser paint
 
     const dataUrl = loaded.thumb;
     let faces = [];
-    try { faces = await Vision.facesFromImage(loaded.img); } catch (e) { console.warn('facesFromImage', e); }
+    try {
+      faces = await Vision.facesFromImage(loaded.img, { signal: myAbort });
+    } catch (e) {
+      if (/cancelled/.test(e.message)) break;
+      console.warn('facesFromImage', e);
+      if (/timeout/.test(e.message)) timedOut++;
+    }
 
     if (!faces.length) {
       // keep it in the queue so they can still add the person by name
@@ -415,14 +432,18 @@ async function intake(files) {
   }
 
   const ms = Math.round(performance.now() - t0);
+  const done = queue.length ? imgs.length : 0;
   const per = imgs.length ? Math.round(ms / imgs.length) : 0;
   $('dropStatus').innerHTML =
-    `<b>${faceCount}</b> face${faceCount === 1 ? '' : 's'} found across ${imgs.length} photo${imgs.length === 1 ? '' : 's'}`
+    (myAbort.aborted ? `<span style="color:var(--amber)"><b>Cancelled.</b> Keeping what was found so far.</span><br>` : '')
+    + `<b>${faceCount}</b> face${faceCount === 1 ? '' : 's'} found across ${imgs.length} photo${imgs.length === 1 ? '' : 's'}`
     + ` &middot; ${(ms / 1000).toFixed(1)}s total, ${per}ms each &middot; backend <b>${Vision.backend}</b>`
-    + (Vision.backend === 'cpu' ? ` <span style="color:var(--amber)">(CPU &mdash; slower; the GPU path was unavailable)</span>` : '')
+    + (Vision.backend === 'cpu' ? ` <span style="color:var(--amber)">(CPU &mdash; roughly 20x slower than the GPU path)</span>` : '')
     + (groupPhotos ? `<br><span style="color:var(--green)">${groupPhotos} group photo${groupPhotos === 1 ? '' : 's'} split into separate people &mdash; name each one.</span>` : '')
+    + (timedOut ? `<br><span style="color:var(--red)">${timedOut} timed out</span> and were skipped rather than left hanging. Try them one at a time, or use a smaller photo.` : '')
     + (emptyPhotos ? `<br><span style="color:var(--red)">${emptyPhotos} with no face found.</span> Front-on, well lit, face at least ~100px across works best.` : '')
     + (errors.length ? `<br><span style="color:var(--red)">${errors.length} could not be opened:</span><br>` + errors.map(e => `<span class="tiny">${esc(e)}</span>`).join('<br>') : '');
+  scanAbort = null;
   renderThumbs(); renderTagger();
 }
 

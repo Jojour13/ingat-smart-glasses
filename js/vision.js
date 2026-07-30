@@ -221,19 +221,45 @@ const Vision = {
    */
   async facesFromImage(imgEl, opts = {}) {
     const src = await this._fit(imgEl, 1024);
-    const passes = [
-      { inputSize: 320, scoreThreshold: 0.45 },
-      { inputSize: 512, scoreThreshold: 0.40 },   // small faces in a wide shot
-      { inputSize: 224, scoreThreshold: 0.35 },   // tight portrait, or low light
-      { inputSize: 608, scoreThreshold: 0.30 },   // last resort
-    ];
+
+    // The CPU backend is 10-50x slower than WebGL. Four passes, the largest at
+    // 608px, is minutes per photo there — which reads as "frozen". So on CPU we
+    // do two cheap passes and accept a slightly lower hit rate, because a
+    // result in 8 seconds beats a better result nobody waits for.
+    const cpu = this.backend === 'cpu';
+    const passes = cpu
+      ? [ { inputSize: 320, scoreThreshold: 0.40 },
+          { inputSize: 416, scoreThreshold: 0.35 } ]
+      : [ { inputSize: 320, scoreThreshold: 0.45 },
+          { inputSize: 512, scoreThreshold: 0.40 },   // small faces in a wide shot
+          { inputSize: 224, scoreThreshold: 0.35 },   // tight portrait, or low light
+          { inputSize: 608, scoreThreshold: 0.30 } ]; // last resort
+
+    // Per-pass and whole-photo ceilings. Model LOADING was already guarded, but
+    // INFERENCE was not: if the WebGL context is lost or the GPU driver stalls,
+    // the promise below simply never settles and the entire batch hangs with no
+    // error and no way out. That is the difference between "slow" and "frozen".
+    const passMs = opts.passMs || (cpu ? 12000 : 8000);
+    const budgetMs = opts.budgetMs || (cpu ? 25000 : 20000);
+    const deadline = Date.now() + budgetMs;
+    const race = (p, ms, what) => Promise.race([
+      p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + what)), ms)),
+    ]);
 
     for (let i = 0; i < passes.length; i++) {
+      if (opts.signal && opts.signal.aborted) throw new Error('cancelled');
+      if (Date.now() > deadline) {
+        console.warn('vision: photo budget exhausted after pass', i);
+        break;
+      }
       try {
-        const dets = await faceapi
-          .detectAllFaces(src, new faceapi.TinyFaceDetectorOptions(passes[i]))
-          .withFaceLandmarks(true)
-          .withFaceDescriptors();
+        const dets = await race(
+          faceapi
+            .detectAllFaces(src, new faceapi.TinyFaceDetectorOptions(passes[i]))
+            .withFaceLandmarks(true)
+            .withFaceDescriptors(),
+          Math.min(passMs, Math.max(1500, deadline - Date.now())),
+          'detect pass ' + (i + 1));
         if (dets && dets.length) {
           if (opts.verbose) console.info('vision:', dets.length, 'face(s) on pass', i + 1);
           return dets
