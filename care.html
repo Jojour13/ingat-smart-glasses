@@ -83,11 +83,12 @@
           <span class="right pill" id="factPill">0 waiting</span></div>
         <div class="bd">
           <p class="sub" style="margin-top:0">
-            The glasses heard something while you were with him and pulled out one fact.
-            <b>Nothing was recorded and nothing is kept until you say so.</b> Confirm it
-            and he will be asked about it over the coming days, at widening intervals,
-            so he practises remembering it himself.
+            The glasses listened while you were with him and pulled out the things that
+            sounded worth keeping. <b>Nothing was recorded and nothing is kept until you
+            say so.</b> Whatever you confirm, he will be asked about over the coming days
+            at widening intervals, so he practises remembering it himself.
           </p>
+          <div class="row noprint" id="factBulk" style="margin-bottom:4px"></div>
           <div id="factQueue"></div>
         </div>
       </div>
@@ -380,6 +381,26 @@ function render() {
   $('factQueue').querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
     Store.dropFact(b.dataset.drop); Store.save(); render();
   });
+
+  // With several at once, going one by one is a chore for someone who is
+  // already overwhelmed. Give her a single gesture for the common cases.
+  $('factBulk').innerHTML = pending.length > 1
+    ? `<button class="btn g sm" id="keepAll">Keep all ${pending.length}</button>
+       <button class="btn sm" id="dropAll">Forget all ${pending.length}</button>
+       <span class="tiny" style="margin-left:4px">or decide one at a time below</span>`
+    : '';
+  if ($('keepAll')) $('keepAll').onclick = () => {
+    pending.forEach(f => {
+      const inp = $('factQueue').querySelector(`.factText[data-id="${f.id}"]`);
+      Store.confirmFact(f.id, inp ? inp.value.trim() : null);
+    });
+    Store.save(); render();
+  };
+  if ($('dropAll')) $('dropAll').onclick = () => {
+    if (!confirm(`Forget all ${pending.length}? Nothing will be kept from that conversation.`)) return;
+    pending.slice().forEach(f => Store.dropFact(f.id));
+    Store.save(); render();
+  };
 
   /* the practice rotation — faces are only one kind of item */
   const rs = Recall.stats();

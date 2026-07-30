@@ -102,13 +102,13 @@ const Memory = {
       this._rec = null;
     }
     const personId = this.activePersonId;
-    let fact = null;
-    if (propose && this._buf.length) fact = this._propose(personId);
+    let facts = null;
+    if (propose && this._buf.length) facts = this._propose(personId);
     this._wipe();
     this.activePersonId = null;
     this.listening = false;
     this.onState && this.onState(false, null);
-    return fact;
+    return facts;                      // array of proposed facts, or null
   },
 
   /** Explicitly destroy everything heard. Called on stop, and on demand. */
@@ -151,32 +151,88 @@ const Memory = {
    *
    * Whatever comes out is a PROPOSAL. It is not kept until a human says so.
    */
+  MAX_FACTS: 5,     // per conversation
+
+  /**
+   * Turn the buffer into up to MAX_FACTS candidate facts.
+   *
+   * Not one. An hour with your daughter can easily contain five things worth
+   * keeping — the grandson's exam results, that she is coming again on
+   * Thursday, that the neighbour has moved out. Keeping one and destroying the
+   * other four does not make the product safer, it makes it not work, and then
+   * the data we did keep was collected for nothing.
+   *
+   * Data minimisation under the PDPA means not collecting more than the
+   * purpose requires. The purpose here is episodic memory support, and one
+   * sentence per visit does not serve it.
+   */
   _propose(personId) {
     // Pass the FRAGMENTS, not one joined string. Speech recognisers rarely
     // emit punctuation, so joining first produces a single run-on "sentence"
     // that is the entire conversation — which would then be stored verbatim
-    // as the "fact". That is precisely the failure this feature exists to
-    // avoid, and it is invisible unless you look. Each isFinal result is a
-    // natural utterance boundary, so those are the units to score.
-    const sentence = this._pickSentence(this._buf.map(b => b.text));
-    if (!sentence) return null;
+    // as the "fact". Each isFinal result is a natural utterance boundary.
+    const picked = this._pickSentences(this._buf.map(b => b.text), this.MAX_FACTS);
+    if (!picked.length) return null;
+
     const person = personId ? Store.person(personId) : null;
-    const fact = Store.proposeFact({
-      text: this._tidy(sentence),
-      who: person ? person.name : '',
-      personId: personId || null,
+    const made = [];
+    picked.forEach(sentence => {
+      const text = this._tidy(sentence);
+      if (this._alreadyKnown(text)) return;      // she tells him every week
+      made.push(Store.proposeFact({
+        text,
+        who: person ? person.name : '',
+        personId: personId || null,
+      }));
     });
-    this.onPropose && this.onPropose(fact);
-    return fact;
+    if (!made.length) return null;
+    this.onPropose && this.onPropose(made);
+    return made;
+  },
+
+  /**
+   * Has he been told this before?
+   *
+   * Families repeat themselves — that is what makes them families — and
+   * without this the library fills with six copies of the same news, all of
+   * which then enter the practice rotation separately. Compares content words
+   * rather than exact strings, because the recogniser will not transcribe it
+   * identically twice.
+   */
+  _alreadyKnown(text) {
+    const words = a => new Set(this._contentWords(a));
+    const nw = words(text);
+    if (!nw.size) return true;
+    return Store.s.facts.some(f => {
+      const ow = words(f.text);
+      if (!ow.size) return false;
+      let shared = 0;
+      nw.forEach(w => { if (ow.has(w)) shared++; });
+      return shared / Math.min(nw.size, ow.size) >= 0.6;
+    });
+  },
+
+  _contentWords(s) {
+    const stop = new Set(['the','a','an','and','but','or','so','then','that','this','was','were',
+                          'is','are','has','have','had','his','her','your','you','my','me','him',
+                          'she','he','they','we','it','of','to','in','on','at','for','with','about']);
+    return (s || '').toLowerCase().replace(/[^a-z\s]/g, ' ')
+      .split(/\s+/).filter(w => w.length > 2 && !stop.has(w));
   },
 
   MAX_WORDS: 16,   // a fact is one clause. Anything longer is a transcript.
 
-  /**
-   * The single clause most likely to be worth remembering.
-   * @param {string[]} fragments  one per final speech result
-   */
+  /** Back-compat single-pick wrapper. */
   _pickSentence(fragments) {
+    return this._pickSentences(fragments, 1)[0] || null;
+  },
+
+  /**
+   * The clauses most likely to be worth remembering, best first.
+   * @param {string[]} fragments  one per final speech result
+   * @param {number}   limit
+   */
+  _pickSentences(fragments, limit = 5) {
     const units = [];
     (fragments || []).forEach(frag => {
       // split on punctuation where the recogniser gave us any, and on the
@@ -191,7 +247,7 @@ const Memory = {
     });
 
     const candidates = units.filter(s => s.split(/\s+/).length >= 4 && s.length < 200);
-    if (!candidates.length) return null;
+    if (!candidates.length) return [];
 
     // Strong markers are things that actually happen to a family. Weak ones
     // are merely event-shaped — "came round" is a visit, but so is every
@@ -217,8 +273,22 @@ const Memory = {
       return { s, score };
     }).sort((a, b) => b.score - a.score);
 
-    if (scored[0].score < 4) return null;
-    return this._trimToClause(scored[0].s);
+    // Everything that clears the bar, best first, de-duplicated against each
+    // other so two phrasings of the same remark do not both survive.
+    const out = [];
+    for (const c of scored) {
+      if (c.score < 4 || out.length >= limit) break;
+      const trimmed = this._trimToClause(c.s);
+      const words = new Set(this._contentWords(trimmed));
+      const dup = out.some(prev => {
+        const pw = new Set(this._contentWords(prev));
+        let shared = 0;
+        words.forEach(w => { if (pw.has(w)) shared++; });
+        return shared / Math.max(1, Math.min(words.size, pw.size)) >= 0.6;
+      });
+      if (!dup) out.push(trimmed);
+    }
+    return out;
   },
 
   /**

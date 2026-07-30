@@ -578,8 +578,10 @@ $('btnWayHome').onclick = async () => {
 };
 
 /* ---------------------------------------------------- conversation */
-Memory.onPropose = fact => {
-  logLine(`FACT PROPOSED — "${fact.text}" — waiting for the family to confirm it.`, 'hi');
+Memory.onPropose = facts => {
+  const list = Array.isArray(facts) ? facts : [facts];
+  logLine(`${list.length} FACT${list.length === 1 ? '' : 'S'} PROPOSED — waiting for the family to confirm.`, 'hi');
+  list.forEach(f => logLine(`   · "${f.text}"`, ''));
   render();
 };
 Memory.onState = (on, personId) => {
@@ -591,8 +593,8 @@ Memory.onState = (on, personId) => {
 };
 
 $('btnMemEnd').onclick = () => {
-  const f = Memory.stop(true);
-  if (!f) logLine('Nothing worth keeping was heard. Buffer wiped.', '');
+  const facts = Memory.stop(true);
+  if (!facts || !facts.length) logLine('Nothing worth keeping was heard. Buffer wiped.', '');
 };
 $('btnMemWipe').onclick = () => {
   Memory.stop(false);
