@@ -199,30 +199,78 @@ const Vision = {
    * Returns { descriptor, attempt } or null.
    */
   async fromImage(imgEl, opts = {}) {
+    const faces = await this.facesFromImage(imgEl, opts);
+    if (!faces.length) return null;
+    const out = faces[0].descriptor;
+    out.attempt = faces[0].attempt;
+    return out;
+  },
+
+  /**
+   * EVERY face in a still image, each with its own descriptor and a cropped
+   * thumbnail.
+   *
+   * This exists because family photos are group photos. The earlier version
+   * used detectSingleFace(), which returns only the highest-scoring detection
+   * — so a picture of a mother and daughter enrolled ONE of them, silently,
+   * with no way to tell which. If the caregiver then typed "Mei Ling", the
+   * glasses could spend the next year confidently calling her mother by her
+   * daughter's name. Silently wrong is far worse than visibly failing.
+   *
+   * Returns faces sorted largest-first, each: { descriptor, box, crop, attempt }
+   */
+  async facesFromImage(imgEl, opts = {}) {
     const src = await this._fit(imgEl, 1024);
     const passes = [
       { inputSize: 320, scoreThreshold: 0.45 },
-      { inputSize: 512, scoreThreshold: 0.40 },   // small face in a wide shot
+      { inputSize: 512, scoreThreshold: 0.40 },   // small faces in a wide shot
       { inputSize: 224, scoreThreshold: 0.35 },   // tight portrait, or low light
       { inputSize: 608, scoreThreshold: 0.30 },   // last resort
     ];
+
     for (let i = 0; i < passes.length; i++) {
       try {
-        const d = await faceapi
-          .detectSingleFace(src, new faceapi.TinyFaceDetectorOptions(passes[i]))
+        const dets = await faceapi
+          .detectAllFaces(src, new faceapi.TinyFaceDetectorOptions(passes[i]))
           .withFaceLandmarks(true)
-          .withFaceDescriptor();
-        if (d) {
-          const out = d.descriptor;
-          if (opts.verbose) console.info('vision: matched on pass', i + 1, passes[i]);
-          out.attempt = i + 1;
-          return out;
+          .withFaceDescriptors();
+        if (dets && dets.length) {
+          if (opts.verbose) console.info('vision:', dets.length, 'face(s) on pass', i + 1);
+          return dets
+            .map(d => ({
+              descriptor: d.descriptor,
+              box: d.detection.box,
+              score: +d.detection.score.toFixed(2),
+              crop: this._crop(src, d.detection.box),
+              attempt: i + 1,
+            }))
+            .sort((a, b) => (b.box.width * b.box.height) - (a.box.width * a.box.height));
         }
       } catch (e) {
         console.warn('vision: pass', i + 1, 'failed', e.message);
       }
     }
-    return null;
+    return [];
+  },
+
+  /** Square crop around a detection, padded, for the caregiver to look at. */
+  _crop(src, box, size = 150) {
+    try {
+      const pad = Math.max(box.width, box.height) * 0.42;
+      const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+      const side = Math.max(box.width, box.height) + pad * 2;
+      const sw = src.videoWidth || src.naturalWidth || src.width;
+      const sh = src.videoHeight || src.naturalHeight || src.height;
+      const sx = Math.max(0, Math.min(cx - side / 2, sw - side));
+      const sy = Math.max(0, Math.min(cy - side / 2, sh - side));
+      const s = Math.min(side, sw, sh);
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      c.getContext('2d').drawImage(src, Math.max(0, sx), Math.max(0, sy), s, s, 0, 0, size, size);
+      return c.toDataURL('image/jpeg', 0.78);
+    } catch (e) {
+      return null;
+    }
   },
 
   /** Downscale to a sane working size. Returns a canvas, or the original. */

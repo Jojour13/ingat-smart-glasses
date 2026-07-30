@@ -356,28 +356,51 @@ async function intake(files) {
   }
 
   const t0 = performance.now();
-  let found = 0;
-  const passes = [];
+  let faceCount = 0, emptyPhotos = 0, groupPhotos = 0;
+
   for (let i = 0; i < imgs.length; i++) {
-    $('dropStatus').innerHTML = `scanning <b>${i + 1}/${imgs.length}</b> &mdash; ${imgs[i].name.slice(0, 24)}`;
+    $('dropStatus').innerHTML = `scanning <b>${i + 1}/${imgs.length}</b> &mdash; ${esc(imgs[i].name.slice(0, 24))}`;
     const dataUrl = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(imgs[i]); });
     const img = new Image(); img.src = dataUrl;
     await new Promise(r => { img.complete ? r() : (img.onload = r, img.onerror = r); });
-    let d = null;
-    try { d = await Vision.fromImage(img); } catch (e) { console.warn('fromImage', e); }
-    if (d) { found++; passes.push(d.attempt || 1); }
-    queue.push({ id: 'q' + Math.random().toString(36).slice(2, 8), photo: dataUrl, descriptor: d,
-                 name: imgs[i].name, attempt: d ? d.attempt : null });
+
+    let faces = [];
+    try { faces = await Vision.facesFromImage(img); } catch (e) { console.warn('facesFromImage', e); }
+
+    if (!faces.length) {
+      // keep it in the queue so they can still add the person by name
+      emptyPhotos++;
+      queue.push({ id: 'q' + Math.random().toString(36).slice(2, 8), photo: dataUrl,
+                   descriptor: null, name: imgs[i].name, attempt: null,
+                   faceIndex: 0, faceTotal: 0 });
+      continue;
+    }
+
+    // A group photo becomes one queue entry PER face, each showing a crop of
+    // that face, so the caregiver always knows exactly who they are naming.
+    if (faces.length > 1) groupPhotos++;
+    faces.forEach((f, k) => {
+      faceCount++;
+      queue.push({
+        id: 'q' + Math.random().toString(36).slice(2, 8),
+        photo: f.crop || dataUrl,        // the crop is what gets stored
+        full: dataUrl,                   // the original, for context
+        descriptor: f.descriptor,
+        name: imgs[i].name,
+        attempt: f.attempt,
+        score: f.score,
+        faceIndex: k + 1,
+        faceTotal: faces.length,
+      });
+    });
   }
 
   const ms = Math.round(performance.now() - t0);
-  const retried = passes.filter(p => p > 1).length;
   $('dropStatus').innerHTML =
-    `<b>${found}/${imgs.length}</b> faces found in ${ms}ms &middot; backend <b>${Vision.backend}</b>`
-    + (retried ? ` &middot; ${retried} needed a second pass` : '')
-    + (found < imgs.length
-        ? `<br><span style="color:var(--red)">${imgs.length - found} with no face.</span> Front-on, well lit, face at least ~100px across works best.`
-        : '');
+    `<b>${faceCount}</b> face${faceCount === 1 ? '' : 's'} found across ${imgs.length} photo${imgs.length === 1 ? '' : 's'}`
+    + ` in ${ms}ms &middot; backend <b>${Vision.backend}</b>`
+    + (groupPhotos ? `<br><span style="color:var(--green)">${groupPhotos} group photo${groupPhotos === 1 ? '' : 's'} split into separate people &mdash; name each one.</span>` : '')
+    + (emptyPhotos ? `<br><span style="color:var(--red)">${emptyPhotos} with no face found.</span> Front-on, well lit, face at least ~100px across works best.` : '');
   renderThumbs(); renderTagger();
 }
 
@@ -386,6 +409,7 @@ function renderThumbs() {
     <div class="thumb ${q.descriptor ? '' : 'bad'}">
       <img src="${q.photo}" alt="">
       ${q.descriptor ? '' : '<div class="flag">NO FACE FOUND</div>'}
+      ${q.faceTotal > 1 ? `<div class="flag" style="background:var(--green);bottom:auto;top:0">FACE ${q.faceIndex} OF ${q.faceTotal}</div>` : ''}
       <button class="x" data-q="${q.id}" title="Remove">&times;</button>
       <div class="meta"><b>${esc(q.name.slice(0, 16))}</b><span>${
         q.descriptor ? (q.attempt > 1 ? `ready · pass ${q.attempt}` : 'ready') : 'cannot recognise'
@@ -404,7 +428,21 @@ function renderTagger() {
     return;
   }
   $('tagger').innerHTML = `
-    <img src="${q.photo}" style="width:100%;max-height:190px;object-fit:cover;border-radius:8px;border:1px solid var(--rule);margin-bottom:12px">
+    ${q.faceTotal > 1 ? `
+      <div class="note g" style="margin-bottom:12px">
+        <b>This photo has ${q.faceTotal} people in it.</b> We split them out so you
+        name each face separately &mdash; you are naming <b>face ${q.faceIndex} of
+        ${q.faceTotal}</b>, shown large on the left below. Check it is who you think
+        before you type.
+      </div>
+      <div class="row" style="gap:10px;align-items:flex-start;margin-bottom:12px">
+        <img src="${q.photo}" style="width:150px;height:150px;object-fit:cover;border-radius:8px;border:2px solid var(--accent);flex:0 0 auto">
+        <div style="flex:1;min-width:0">
+          <div class="telemetry" style="margin-bottom:5px">the photo it came from</div>
+          <img src="${q.full}" style="width:100%;max-height:130px;object-fit:cover;border-radius:8px;border:1px solid var(--rule)">
+        </div>
+      </div>`
+    : `<img src="${q.photo}" style="width:100%;max-height:190px;object-fit:cover;border-radius:8px;border:1px solid var(--rule);margin-bottom:12px">`}
     ${q.descriptor ? '' : `<div class="note w" style="margin-bottom:12px">
       <b>No face detected in this photo.</b> You can still add them &mdash; they will
       appear in the library and in his life story &mdash; but the glasses will not be
