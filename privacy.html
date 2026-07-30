@@ -274,10 +274,13 @@ const SCRIPT = {
 };
 
 const PURPOSES = [
-  ['recognition', 'Recognise family faces and tell him who they are', 'The core help. Enrolled people only.'],
-  ['reminders',   'Remind him about medication, appointments and routine', 'No camera needed for this one.'],
-  ['trajectory',  'Measure how much help he needed, and share the trend with his doctor', 'This is the one to think about. It is genuinely useful and it is genuinely about him.'],
-  ['research',    'Contribute de-identified data to the clinical pilot', 'Entirely optional. Declining changes nothing about how the glasses work.'],
+  ['recognition',  'Recognise family faces and tell him who they are', 'The core help. Enrolled people only.'],
+  ['reminders',    'Remind him about medication, appointments and routine', 'No camera needed for this one.'],
+  ['conversation', 'Listen while an enrolled person is with him, and keep one fact',
+                   'THINK ABOUT THIS ONE CAREFULLY. It listens only while someone he has enrolled is in view, holds what it hears in memory for a few minutes and never writes it down, then proposes a single sentence for you to confirm or delete. Nothing is kept unless you say so. Say no and everything else still works.'],
+  ['location',     'Tell you if he leaves the area around home', 'A circle around home, not a map with a dot on it. He is told which way home is; you are told he went out.'],
+  ['trajectory',   'Measure how much help he needed, and share the trend with his doctor', 'Genuinely useful, and genuinely about him.'],
+  ['research',     'Contribute de-identified data to the clinical pilot', 'Entirely optional. Declining changes nothing about how the glasses work.'],
 ];
 
 const OBLIGATIONS = [
@@ -401,6 +404,8 @@ function render() {
   $('holdings').innerHTML = `
     <div class="kpi"><b class="a">${desc}</b><span>face descriptors</span></div>
     <div class="kpi"><b>${photos}</b><span>photos</span></div>
+    <div class="kpi"><b>${s.facts.filter(f => f.status === 'kept').length}</b><span>facts you confirmed</span></div>
+    <div class="kpi"><b>0</b><span>conversations recorded</span></div>
     <div class="kpi"><b>0</b><span>video frames stored</span></div>
     <div class="kpi"><b>0</b><span>strangers identified</span></div>`;
 

@@ -33,6 +33,17 @@ const EV = {
   ASSENT:       'assent_changed',
   EXPORT:       'data_exported',
   ERASE:        'data_erased',
+  FACT_HEARD:   'fact_proposed',
+  FACT_KEPT:    'fact_confirmed',
+  FACT_DROPPED: 'fact_discarded',
+  FACT_RECALL:  'fact_recalled',
+  FACT_MISSED:  'fact_not_recalled',
+  OBJ_ASK:      'object_asked',
+  OBJ_TOLD:     'object_answered',
+  OBJ_SEEN:     'object_placed',
+  GEO_LEFT:     'left_safe_zone',
+  GEO_BACK:     'returned_safe_zone',
+  GEO_HOME:     'way_home_given',
 };
 
 /* --------------------------------------------------------------- seed data */
@@ -60,9 +71,14 @@ function seedAppointments() {
   ];
 }
 
+/** A fresh retrieval ladder. Shared by faces, facts and object locations. */
+function newCue() {
+  return { stage: 0, wins: 0, losses: 0, intervalH: 4, lastTrial: null };
+}
+
 function seedState() {
   return {
-    version: 2,
+    version: 3,
     created: Date.now(),
     patient: {
       name: 'Tan Ah Kow',
@@ -90,6 +106,30 @@ function seedState() {
       { id: 'l4', kind: 'event', label: 'Wedding, 1978',             detail: 'Nine tables at a coffee shop in Geylang.' },
     ],
     voices: {},               // personId -> recorded audio dataURL
+
+    /* ---- Episodic memory. FACTS, never transcripts. -----------------
+       What was said is held in volatile memory only and discarded; what
+       survives is one short fact a human confirmed. See js/memory.js. */
+    facts: [
+      { id: 'f1', text: 'Your grandson passed his exams', personId: null,
+        who: 'Mei Ling', ts: Date.now() - 86400000 * 2, source: 'seed',
+        status: 'kept', cue: newCue(), trials: [] },
+    ],
+
+    /* ---- Things he puts down and cannot find ------------------------
+       Objects carry a cue ladder too: where a thing lives is exactly the
+       kind of fact spaced retrieval is good at re-teaching. */
+    objects: [
+      { id: 'o1', name: 'wallet', home: 'the drawer by the door', lastSeen: null, tagged: true, cue: newCue(), trials: [] },
+      { id: 'o2', name: 'keys', home: 'the hook by the door', lastSeen: null, tagged: true, cue: newCue(), trials: [] },
+      { id: 'o3', name: 'walking stick', home: 'beside the sofa', lastSeen: null, tagged: false, cue: newCue(), trials: [] },
+      { id: 'o4', name: 'spectacles case', home: 'the bedside table', lastSeen: null, tagged: false, cue: newCue(), trials: [] },
+    ],
+
+    /* ---- Geofence. A safe zone, not a map with a dot on it. --------- */
+    zones: [],                // { id, label, lat, lng, radiusM }
+    geo: { inZone: null, lastFix: null, lastEvent: null },
+
     events: [],
     audit: [],                // append-only, PDPA accountability
     weeks: seedWeeks(),
@@ -105,10 +145,12 @@ function seedState() {
       retentionDays: 365,
       dpo: { name: '', email: '' },
       purposes: {
-        recognition: true,      // match enrolled faces, speak the prompt
-        reminders:   true,      // medication, appointments, routine
-        trajectory:  false,     // compute and share the Cognitive Trajectory Index
-        research:    false,     // contribute de-identified data to the pilot
+        recognition:  true,     // match enrolled faces, speak the prompt
+        reminders:    true,     // medication, appointments, routine
+        conversation: false,    // listen while an enrolled person is present
+        location:     false,    // safe-zone alerts
+        trajectory:   false,    // compute and share the Cognitive Trajectory Index
+        research:     false,    // contribute de-identified data to the pilot
       },
     },
 
@@ -122,7 +164,7 @@ function seedState() {
   };
 }
 
-/** Forward-migrate a v1 store rather than wiping the user's session. */
+/** Forward-migrate an older store rather than wiping the user's session. */
 function migrate(s) {
   const fresh = seedState();
   if (!s.appointments) s.appointments = fresh.appointments;
@@ -133,6 +175,22 @@ function migrate(s) {
   if (!s.consent)      s.consent      = fresh.consent;
   if (!s.places)       s.places       = fresh.places;
   if (s.settings && s.settings.scheduler === undefined) s.settings.scheduler = true;
+
+  // v3
+  if (!s.facts)   s.facts   = fresh.facts;
+  if (!s.objects) s.objects = fresh.objects;
+  // Anything carrying a retrieval ladder must actually have one, or the
+  // practice list throws on render.
+  (s.facts || []).forEach(f => { if (!f.cue) f.cue = newCue(); if (!f.trials) f.trials = []; });
+  (s.objects || []).forEach(o => { if (!o.cue) o.cue = newCue(); if (!o.trials) o.trials = []; });
+  if (!s.zones)   s.zones   = [];
+  if (!s.geo)     s.geo     = { inZone: null, lastFix: null, lastEvent: null };
+  if (s.consent && s.consent.purposes) {
+    const p = s.consent.purposes;
+    if (p.conversation === undefined) p.conversation = false;
+    if (p.location === undefined)     p.location = false;
+  }
+
   s.version = fresh.version;
   return s;
 }
@@ -150,7 +208,7 @@ const Store = {
       this.s = seedState();
     }
     if (!this.s.version) this.s = seedState();
-    else if (this.s.version < 2) this.s = migrate(this.s);
+    else if (this.s.version < 3) this.s = migrate(this.s);
     return this.s;
   },
 
@@ -277,6 +335,58 @@ const Store = {
   addMed(m)     { this.s.meds.push({ id: this._id('m'), ...m }); this.audit('medication.create', m.name); },
   removeMed(id) { this.s.meds = this.s.meds.filter(x => x.id !== id); this.audit('medication.delete', id); },
 
+  /* ---------------------------------------------------- episodic facts
+     A fact only exists because a human confirmed it. Nothing that was
+     merely heard is ever stored — see js/memory.js. */
+  proposeFact({ text, who, personId }) {
+    const f = { id: this._id('f'), text, who: who || '', personId: personId || null,
+                ts: Date.now(), source: 'conversation', status: 'proposed',
+                cue: newCue(), trials: [] };
+    this.s.facts.push(f);
+    this.log(EV.FACT_HEARD, { detail: text });
+    this.save();
+    return f;
+  },
+  confirmFact(id, text) {
+    const f = this.s.facts.find(x => x.id === id);
+    if (!f) return;
+    if (text) f.text = text;
+    f.status = 'kept';
+    this.log(EV.FACT_KEPT, { detail: f.text });
+    this.audit('fact.confirm', f.text);
+  },
+  dropFact(id) {
+    const f = this.s.facts.find(x => x.id === id);
+    this.s.facts = this.s.facts.filter(x => x.id !== id);
+    this.log(EV.FACT_DROPPED, { detail: f ? f.text : id });
+    this.audit('fact.discard', f ? f.text : id);
+  },
+  keptFacts() { return this.s.facts.filter(f => f.status === 'kept'); },
+  proposedFacts() { return this.s.facts.filter(f => f.status === 'proposed'); },
+
+  /* --------------------------------------------------------- objects */
+  addObject(o)     { this.s.objects.push({ id: this._id('o'), lastSeen: null, tagged: false,
+                                           cue: newCue(), trials: [], ...o });
+                     this.audit('object.create', o.name); },
+  removeObject(id) { this.s.objects = this.s.objects.filter(x => x.id !== id); this.audit('object.delete', id); },
+  findObject(name) {
+    const n = (name || '').toLowerCase();
+    return this.s.objects.find(o => n.includes(o.name.toLowerCase()))
+        || this.s.objects.find(o => o.name.toLowerCase().includes(n));
+  },
+  placeObject(id, where) {
+    const o = this.s.objects.find(x => x.id === id);
+    if (!o) return;
+    o.lastSeen = { place: where, ts: Date.now() };
+    this.log(EV.OBJ_SEEN, { detail: `${o.name} — ${where}` });
+    this.save();
+  },
+
+  /* ----------------------------------------------------- safe zones */
+  addZone(z)     { this.s.zones.push({ id: this._id('z'), radiusM: 250, ...z });
+                   this.audit('zone.create', `${z.label} r=${z.radiusM || 250}m`); this.save(); },
+  removeZone(id) { this.s.zones = this.s.zones.filter(x => x.id !== id); this.audit('zone.delete', id); this.save(); },
+
   /* -------------------------------------------- scheduler dedupe keys */
   todayKey() { return new Date().toISOString().slice(0, 10); },
   hasFired(key) {
@@ -310,6 +420,9 @@ const Store = {
       })),
       places: s.places, lifeStory: s.lifeStory,
       medications: s.meds, appointments: s.appointments,
+      facts: s.facts.map(f => ({ text: f.text, who: f.who, when: f.ts,
+                                 status: f.status, trials: f.trials.length })),
+      objects: s.objects, safeZones: s.zones,
       events: s.events, audit: s.audit, weeks: s.weeks,
     };
     this.log(EV.EXPORT);

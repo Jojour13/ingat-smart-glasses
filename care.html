@@ -77,6 +77,28 @@
         </div>
       </div>
 
+      <!-- facts awaiting confirmation -->
+      <div class="card" style="margin-bottom:16px" id="factCard">
+        <div class="hd"><h2>Did this happen?</h2>
+          <span class="right pill" id="factPill">0 waiting</span></div>
+        <div class="bd">
+          <p class="sub" style="margin-top:0">
+            The glasses heard something while you were with him and pulled out one fact.
+            <b>Nothing was recorded and nothing is kept until you say so.</b> Confirm it
+            and he will be asked about it over the coming days, at widening intervals,
+            so he practises remembering it himself.
+          </p>
+          <div id="factQueue"></div>
+        </div>
+      </div>
+
+      <!-- what he is practising -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>What he is practising</h2>
+          <span class="right pill" id="recallPill">&ndash;&ndash;</span></div>
+        <div class="bd tight"><div id="recallList"></div></div>
+      </div>
+
       <!-- who is he forgetting -->
       <div class="card" style="margin-bottom:16px">
         <div class="hd"><h2>Who is he forgetting?</h2>
@@ -170,12 +192,18 @@
 <script src="js/cues.js"></script>
 <script src="js/cti.js"></script>
 <script src="js/maas.js"></script>
+<script src="js/recall.js"></script>
+<script src="js/geo.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 Store.load();
 Store.listen();
 Speech.init();
 const $ = id => document.getElementById(id);
+// Facts and object names are free text typed by a family, and go straight into
+// innerHTML. Escape them.
+const esc = s => (s == null ? '' : String(s))
+  .replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* --------------------------------------------------------- enrol from photo */
 let pendingPhoto = null, pendingImg = null;
@@ -283,6 +311,16 @@ function render() {
   if (!s.settings.cameraEnabled) {
     al.push(['r', 'Camera switch is off', 'He was told: “Camera off. I can still remind you about your medicine.” Face recognition is paused until it is switched back on.']);
   }
+  const left = ev.filter(e => e.type === EV.GEO_LEFT);
+  if (left.length) {
+    const g = Geo.status();
+    const back = ev.some(e => e.type === EV.GEO_BACK && e.ts > left[left.length - 1].ts);
+    al.push([back ? 'w' : 'r',
+      back ? `Left the safe zone ${left.length}× today, and came back`
+           : `Outside the safe zone${g.metres ? ' — about ' + g.metres + 'm from ' + g.home.label : ''}`,
+      back ? 'He went out and returned. Normal, and logged.'
+           : 'He was told which way home is. If he does not return shortly, CARA Safe Return is the next step — the card in his wallet lets any member of the public reach you.']);
+  }
   const stageDowns = ev.filter(e => e.type === EV.STAGE_DOWN);
   if (stageDowns.length) {
     al.push(['r', 'Cue support increased', stageDowns.map(e => e.detail).join(' · ') + ' — he missed two retrievals in a row, so we put the help back.']);
@@ -316,6 +354,59 @@ function render() {
     + subBar('Independence &mdash; how far the cues have vanished', sig.independence)
     + subBar('Repetition &mdash; “tell me again” per hour', sig.repetition, sig.raw.perHour + '/h')
     + subBar('Engagement &mdash; wear time vs window', sig.engagement, sig.raw.wearH + 'h');
+
+  /* facts waiting for a human to vouch for them */
+  const pending = Store.proposedFacts();
+  $('factPill').textContent = `${pending.length} waiting`;
+  $('factPill').className = 'right pill ' + (pending.length ? 'a' : 'g');
+  $('factCard').style.display = pending.length ? '' : 'none';
+  $('factQueue').innerHTML = pending.map(f => `
+    <div style="border-top:1px solid var(--rule);padding:12px 0">
+      <div class="telemetry" style="margin-bottom:5px">
+        heard ${Fmt.hm(f.ts)}${f.who ? ' · while ' + esc(f.who) + ' was here' : ''}
+      </div>
+      <input type="text" class="factText" data-id="${f.id}" value="${esc(f.text)}"
+             style="margin-bottom:8px">
+      <div class="row">
+        <button class="btn g sm" data-keep="${f.id}">Yes, that happened</button>
+        <button class="btn sm" data-drop="${f.id}">No &mdash; forget it</button>
+      </div>
+    </div>`).join('');
+  $('factQueue').querySelectorAll('[data-keep]').forEach(b => b.onclick = () => {
+    const inp = $('factQueue').querySelector(`.factText[data-id="${b.dataset.keep}"]`);
+    Store.confirmFact(b.dataset.keep, inp ? inp.value.trim() : null);
+    Store.save(); render();
+  });
+  $('factQueue').querySelectorAll('[data-drop]').forEach(b => b.onclick = () => {
+    Store.dropFact(b.dataset.drop); Store.save(); render();
+  });
+
+  /* the practice rotation — faces are only one kind of item */
+  const rs = Recall.stats();
+  $('recallPill').textContent = rs.pct === null ? `${rs.items} items` : `${rs.pct}% unaided`;
+  const practiceItems = [
+    ...Store.keptFacts().map(f => ({ kind: 'event', label: f.text, sub: f.who ? 'from ' + f.who : '', ref: Recall.factItem(f).ref })),
+    ...s.objects.filter(o => o.home).map(o => ({ kind: 'where', label: `${o.name} → ${o.home}`, sub: o.tagged ? 'tagged' : '', ref: Recall.objectItem(o).ref })),
+  ];
+  $('recallList').innerHTML = practiceItems.length ? practiceItems.map(it => {
+    const tested = (it.ref.trials || []).filter(t => t.outcome !== 'scaffolded');
+    const un = tested.filter(t => t.outcome === 'unaided').length;
+    const pct = tested.length ? Math.round(un / tested.length * 100) : null;
+    const st = STAGES[it.ref.cue.stage];
+    return `<div class="prow">
+      <div class="who">
+        <span class="pill">${it.kind}</span>
+        <div class="voice sm" style="margin-top:5px">${esc(it.label)}</div>
+        ${it.sub ? `<span class="tiny">${esc(it.sub)}</span>` : ''}
+      </div>
+      <div style="text-align:right;flex:0 0 auto">
+        <div class="ladder" style="justify-content:flex-end">
+          ${[0,1,2].map(k => `<i class="${k <= it.ref.cue.stage ? 'on' : ''}"></i>`).join('')}
+        </div>
+        <div class="tiny mono" style="margin-top:3px">${st.short} · ${pct === null ? 'not tested' : pct + '%'}</div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty">Nothing in the rotation yet. Confirm a fact above, or add things in Setup.</div>`;
 
   /* who is he forgetting */
   const pp = CTI.perPerson();
@@ -416,10 +507,19 @@ function render() {
     [EV.PLACE]: 'place prompt', [EV.REMINISCE]: 'reminiscence moment',
     [EV.CONSENT]: 'consent recorded', [EV.ASSENT]: 'assent changed',
     [EV.EXPORT]: 'data exported', [EV.ERASE]: 'data erased',
+    [EV.FACT_HEARD]: 'fact proposed', [EV.FACT_KEPT]: 'fact confirmed',
+    [EV.FACT_DROPPED]: 'fact discarded', [EV.FACT_RECALL]: 'recalled it himself',
+    [EV.FACT_MISSED]: 'could not recall',
+    [EV.OBJ_ASK]: 'asked where something was', [EV.OBJ_TOLD]: 'told where it is',
+    [EV.OBJ_SEEN]: 'object put down',
+    [EV.GEO_LEFT]: 'left the safe zone', [EV.GEO_BACK]: 'returned to the safe zone',
+    [EV.GEO_HOME]: 'given the way home',
   };
   const KIND = {
     [EV.UNAIDED]: 'ok', [EV.STAGE_UP]: 'ok', [EV.MED_OK]: 'ok',
     [EV.MISSED]: 'bad', [EV.STAGE_DOWN]: 'bad', [EV.IDLE_OFF]: 'bad', [EV.CAM_OFF]: 'bad',
+    [EV.FACT_RECALL]: 'ok', [EV.FACT_KEPT]: 'ok', [EV.GEO_BACK]: 'ok',
+    [EV.FACT_MISSED]: 'bad', [EV.GEO_LEFT]: 'bad',
   };
   const list = s.events.slice(-90).reverse();
   $('evCount').textContent = `${s.events.length} events`;

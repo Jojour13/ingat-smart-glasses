@@ -124,7 +124,16 @@
           </div>
 
           <div class="hr" style="margin:12px 0"></div>
-          <div class="telemetry" style="margin-bottom:6px">Places &mdash; in the real product these fire from GPS</div>
+          <div class="telemetry" style="margin-bottom:6px">Ask the glasses &mdash; he speaks, it answers</div>
+          <div class="row" style="margin-bottom:10px">
+            <button class="btn" id="btnAsk">&ldquo;Where is my&hellip;?&rdquo;</button>
+            <button class="btn" id="btnWayHome">&ldquo;Which way is home?&rdquo;</button>
+            <button class="btn" id="btnPractice" title="Run the next thing due for retrieval practice">Practice next</button>
+          </div>
+          <div class="chipbar" id="objChips" style="margin-bottom:10px"></div>
+
+          <div class="hr" style="margin:12px 0"></div>
+          <div class="telemetry" style="margin-bottom:6px">Places &mdash; geofenced in the real product</div>
           <div class="chipbar" id="placeChips"></div>
 
           <p class="tiny" style="margin:10px 0 0">
@@ -149,6 +158,24 @@
               <a href="care.html">caregiver dashboard</a> to add faces, or load the
               sample family from the home page.
             </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="hd"><h2>Conversation memory</h2>
+          <span class="right pill" id="memPill">off</span>
+        </div>
+        <div class="bd">
+          <p class="tiny" style="margin-top:0">
+            Listens <b>only</b> while an enrolled person is in view. Held in memory,
+            never written to disk. One fact is proposed at the end &mdash; the family
+            confirms it before anything is kept.
+          </p>
+          <div class="telemetry" id="memState">not listening</div>
+          <div class="row" style="margin-top:9px">
+            <button class="btn sm" id="btnMemEnd">End &amp; propose a fact</button>
+            <button class="btn sm" id="btnMemWipe">Forget it all</button>
           </div>
         </div>
       </div>
@@ -185,6 +212,9 @@
 <script src="js/cti.js"></script>
 <script src="js/maas.js"></script>
 <script src="js/motion.js"></script>
+<script src="js/recall.js"></script>
+<script src="js/memory.js"></script>
+<script src="js/geo.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 /* ============================================================================
@@ -332,6 +362,10 @@ $('btnStart').onclick = async () => {
     logLine(`Wear detection: ${Motion.describe()}${src === 'camera' ? ' — no accelerometer on this device' : ''}.`,
             src === 'accelerometer' ? 'ok' : '');
     updateWearBadge();
+    if (Geo.permitted && Store.s.zones.length) {
+      Geo.start();
+      logLine(`Safe zone active — ${Store.s.zones[0].label}, ${Store.s.zones[0].radiusM}m.`, 'ok');
+    }
     Schedule.start(20000);
     loop();
   } catch (e) {
@@ -358,6 +392,8 @@ $('btnStop').onclick = () => {
   poweredDown = false;
   Schedule.stop();
   Motion.stop();
+  Geo.stop();
+  Memory.stop(false);          // leaving means the buffer is destroyed, not banked
   Vision.stopCamera();
   Store.wearOff();
   $('ph').style.display = 'grid';
@@ -401,6 +437,9 @@ async function loop() {
         const known = matches.filter(m => m.personId);
         if (known.length) {
           const p = Store.person(known[0].personId);
+          // Conversation memory is gated on an ENROLLED, consented person being
+          // present. A stranger in the room means the microphone stays off.
+          if (p) Memory.start(p.id);
           if (p && Cues.due(p)) await Cues.trial(p);
         } else if (matches.length && !Cues._busy) {
           await Cues.unknown();
@@ -489,6 +528,109 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
+/* ---------------------------------------------------- recall engine */
+Recall.onEvent = (kind, d) => {
+  if (kind === 'cue') {
+    logLine(`PRACTICE (${d.item.kind}) — telling him: ${d.item.full()}`, 'hi');
+  } else if (kind === 'window') {
+    logLine(`PRACTICE (${d.item.kind}) — asked, ${d.stage.windowMs}ms to answer`, 'hi');
+    runWindow(d.stage.windowMs);
+  } else if (kind === 'window-end') {
+    $('winBar').style.display = 'none';
+  } else if (kind === 'trial') {
+    const o = d.rec.outcome;
+    logLine(`${o.toUpperCase()} (${d.item.kind}) — ${d.item.full()}`,
+            o === 'unaided' ? 'ok' : (o === 'scaffolded' ? '' : 'bad'));
+    render();
+  } else if (kind === 'stage') {
+    logLine(`LADDER ${d.dir === 'up' ? 'ADVANCED' : 'REGRESSED'} — now ${d.stage.short}`,
+            d.dir === 'up' ? 'ok' : 'bad');
+    render();
+  }
+};
+
+$('btnPractice').onclick = async () => {
+  const q = Recall.queue();
+  if (!q.length) {
+    logLine('Nothing due for practice. Confirm a fact on the caregiver page, or wait out the interval.', '');
+    return;
+  }
+  await Recall.next();
+};
+
+/* "Where is my wallet?" — a lookup, not a test. If he is asking, he has
+   already tried to remember and failed; testing him now would be unkind. */
+$('btnAsk').onclick = async () => {
+  const objs = Store.s.objects.map(o => o.name);
+  if (!objs.length) { logLine('No objects set up. Add them in Setup.', ''); return; }
+  logLine('Listening for "where is my ..." — say it, or tap an object below.', 'hi');
+  const res = await Listener.listen(objs, 4000, Store.s.patient.language);
+  if (res.hit) await Recall.whereIs(res.heard);
+  else logLine('Did not catch it. Tap one of the objects instead.', '');
+};
+
+$('btnWayHome').onclick = async () => {
+  if (!Store.s.zones.length) {
+    logLine('No home zone set. Set one in Setup — it needs a real location fix.', 'bad');
+    return;
+  }
+  await Geo.wayHome(true);
+};
+
+/* ---------------------------------------------------- conversation */
+Memory.onPropose = fact => {
+  logLine(`FACT PROPOSED — "${fact.text}" — waiting for the family to confirm it.`, 'hi');
+  render();
+};
+Memory.onState = (on, personId) => {
+  const p = personId ? Store.person(personId) : null;
+  $('memPill').textContent = on ? 'listening' : 'off';
+  $('memPill').className = 'right pill ' + (on ? 'r' : '');
+  if (on) logLine(`CONVERSATION — listening while ${p ? p.name : 'someone'} is here. Nothing is written to disk.`, 'hi');
+  render();
+};
+
+$('btnMemEnd').onclick = () => {
+  const f = Memory.stop(true);
+  if (!f) logLine('Nothing worth keeping was heard. Buffer wiped.', '');
+};
+$('btnMemWipe').onclick = () => {
+  Memory.stop(false);
+  logLine('Buffer wiped. Nothing proposed, nothing kept.', '');
+};
+
+function updateMemory() {
+  const b = Memory.bufferState();
+  const el = $('memState');
+  if (!el) return;
+  if (!Memory.permitted) {
+    el.innerHTML = `<span style="color:var(--muted)">off &mdash; conversation consent not granted. `
+      + `Turn it on in the <a href="privacy.html">Trust Centre</a>.</span>`;
+  } else if (!Memory.supported) {
+    el.innerHTML = `<span style="color:var(--muted)">this browser has no speech recognition (try Chrome)</span>`;
+  } else if (b.listening) {
+    el.innerHTML = `<b>listening</b> &middot; ${b.person || 'someone'} present &middot; `
+      + `${b.fragments} fragment${b.fragments === 1 ? '' : 's'} held in memory &middot; `
+      + `oldest ${Math.round(b.oldestMs / 1000)}s &middot; <b>0 written to disk</b>`;
+  } else {
+    el.textContent = 'idle — waiting for an enrolled person to appear';
+  }
+}
+setInterval(updateMemory, 2000);
+
+/* ---------------------------------------------------- geofence */
+Geo.onEvent = (kind, d) => {
+  if (kind === 'left') {
+    logLine(`LEFT THE SAFE ZONE — ${Math.round(Geo.distance(d.fix, Store.s.zones[0]))}m out. Caregiver alerted.`, 'bad');
+    Geo.wayHome(true);
+  } else if (kind === 'returned') {
+    logLine('Back inside the safe zone.', 'ok');
+  } else if (kind === 'error') {
+    logLine('Location: ' + d.message, 'bad');
+  }
+  render();
+};
+
 /* ---------------------------------------------------- manual controls */
 $('btnTap').onclick = () => Cues.tellAgain(lastSpoken);
 $('btnGot').onclick = () => Listener.confirm(true);
@@ -514,6 +656,20 @@ document.addEventListener('keydown', e => {
 function render() {
   const ppl = Store.s.people;
   $('pplCount').textContent = `${ppl.length} enrolled`;
+
+  // objects — tap to ask where one is, exactly as the voice query would
+  $('objChips').innerHTML = Store.s.objects.length
+    ? Store.s.objects.map(o => {
+        const fresh = o.lastSeen && (Date.now() - o.lastSeen.ts) < 36 * 3600 * 1000;
+        return `<button class="chip" data-obj="${o.id}" title="${fresh ? 'last seen: ' + o.lastSeen.place : 'lives in ' + o.home}">
+                  where is my ${o.name}?${fresh ? ' <b style="color:var(--green)">&bull;</b>' : ''}
+                </button>`;
+      }).join('')
+    : `<span class="tiny">No objects set. Add them in <a href="family.html">Setup</a>.</span>`;
+  $('objChips').querySelectorAll('[data-obj]').forEach(b => b.onclick = async () => {
+    const o = Store.s.objects.find(x => x.id === b.dataset.obj);
+    if (o && !Cues._busy) await Recall.whereIs(o.name);
+  });
 
   // places — dead schema no longer; these are the GPS triggers, driven by hand
   $('placeChips').innerHTML = Store.s.places.length

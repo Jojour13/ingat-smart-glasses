@@ -45,7 +45,8 @@
     <button data-p="places"><span class="n">04</span><span class="t">Places</span><span class="c" id="cPlaces">0</span></button>
     <button data-p="story"><span class="n">05</span><span class="t">Life story</span><span class="c" id="cStory">0</span></button>
     <button data-p="voice"><span class="n">06</span><span class="t">Your voice</span><span class="c" id="cVoice">0</span></button>
-    <button data-p="preview"><span class="n">07</span><span class="t">What he hears</span><span class="c">&rarr;</span></button>
+    <button data-p="things"><span class="n">07</span><span class="t">Things &amp; home</span><span class="c" id="cThings">0</span></button>
+    <button data-p="preview"><span class="n">08</span><span class="t">What he hears</span><span class="c">&rarr;</span></button>
   </div>
 
   <!-- ================================================================ 01 -->
@@ -273,6 +274,72 @@
   </section>
 
   <!-- ================================================================ 07 -->
+  <section class="pane" id="p-things">
+    <div class="grid g-2">
+      <div class="card">
+        <div class="hd"><h2>Things he puts down and cannot find</h2></div>
+        <div class="bd">
+          <p class="sub" style="margin-top:0">
+            He asks the glasses <i>&ldquo;where is my wallet?&rdquo;</i> and they answer.
+            Give each thing a <b>home</b> &mdash; where it belongs &mdash; and the glasses
+            fall back to that whenever they have not seen it recently.
+          </p>
+          <div class="row" style="gap:8px">
+            <label class="fld" style="flex:1"><span>Thing</span>
+              <input type="text" id="oName" placeholder="wallet"></label>
+            <label class="fld" style="flex:0 0 90px"><span>Tagged?</span>
+              <select id="oTag"><option value="1">Yes</option><option value="0">No</option></select></label>
+          </div>
+          <label class="fld"><span>Where it lives</span>
+            <input type="text" id="oHome" placeholder="the drawer by the door"></label>
+          <button class="btn p wide" id="oAdd">Add</button>
+          <div class="hr"></div>
+          <div class="say-preview" id="objPreview"></div>
+          <p class="tiny" style="margin:10px 0 0">
+            The six that matter in dementia are almost always the same: <b>keys, wallet,
+            phone, walking stick, spectacles case, TV remote</b>. A UWB tag on each makes
+            the answer exact and works inside a drawer; untagged things fall back to
+            their home.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="hd"><h2>Things</h2><span class="right pill" id="objPill">0</span></div>
+          <div class="bd tight"><div id="objList"></div></div>
+        </div>
+
+        <div class="card">
+          <div class="hd"><h2>Safe zone</h2>
+            <span class="right pill" id="zonePill">not set</span></div>
+          <div class="bd">
+            <p class="sub" style="margin-top:0">
+              Not a map with a dot on it. A circle around home: if he leaves it you are
+              told, and <b>he</b> is told which way home is. That is the difference
+              between watching him and helping him.
+            </p>
+            <div class="row" style="gap:8px;margin-bottom:10px">
+              <label class="fld" style="flex:1;margin:0"><span>Name</span>
+                <input type="text" id="zLabel" value="Home" placeholder="Home"></label>
+              <label class="fld" style="flex:0 0 110px;margin:0"><span>Radius (m)</span>
+                <input type="text" id="zRadius" value="250"></label>
+            </div>
+            <button class="btn p wide" id="zSet">Use my location as the centre</button>
+            <div class="telemetry" id="zStatus" style="margin-top:9px"></div>
+            <div id="zList" style="margin-top:10px"></div>
+            <p class="tiny" style="margin:10px 0 0">
+              Needs a real location fix, so do this on the phone, outdoors or by a window.
+              Location is a separate consent &mdash; grant it in the
+              <a href="privacy.html">Trust Centre</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 08 -->
   <section class="pane" id="p-preview">
     <div class="card" style="margin-bottom:16px">
       <div class="hd"><h2>His day, as he will hear it</h2>
@@ -314,6 +381,8 @@
 <script src="js/cues.js"></script>
 <script src="js/cti.js"></script>
 <script src="js/maas.js"></script>
+<script src="js/recall.js"></script>
+<script src="js/geo.js"></script>
 <script src="js/schedule.js"></script>
 <script>
 Store.load(); Store.listen(); Speech.init();
@@ -688,7 +757,44 @@ $('vDel').onclick = () => {
   Store.audit('voice.delete', $('vPerson').value); $('vPerson').onchange(); render();
 };
 
-/* ============================================================== 07 PREVIEW */
+/* ============================================================== 07 THINGS */
+function objPrev() {
+  const n = $('oName').value.trim(); if (!n) { $('objPreview').innerHTML = ''; return; }
+  sayPreview($('objPreview'), `Your ${n} lives in ${$('oHome').value.trim() || '…'}.`);
+}
+['oName','oHome'].forEach(i => $(i).oninput = objPrev);
+$('oAdd').onclick = () => {
+  const name = $('oName').value.trim(), home = $('oHome').value.trim();
+  if (!name || !home) { alert('A name and a home, at least.'); return; }
+  Store.addObject({ name, home, tagged: $('oTag').value === '1' });
+  Store.save();
+  $('oName').value = $('oHome').value = ''; $('objPreview').innerHTML = '';
+  render();
+};
+
+$('zSet').onclick = async () => {
+  const b = $('zSet');
+  b.disabled = true; b.textContent = 'Getting a fix…';
+  try {
+    const fix = await Geo.fix();
+    Store.s.zones = [];      // one home zone, kept simple
+    Store.addZone({
+      label: $('zLabel').value.trim() || 'Home',
+      lat: fix.lat, lng: fix.lng,
+      radiusM: Math.max(50, parseInt($('zRadius').value, 10) || 250),
+    });
+    Store.s.geo.lastFix = fix;
+    Store.s.geo.inZone = true;
+    Store.save();
+    $('zStatus').innerHTML = `Set. Accuracy &plusmn;${fix.acc}m.`;
+  } catch (e) {
+    $('zStatus').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`;
+  }
+  b.disabled = false; b.textContent = 'Use my location as the centre';
+  render();
+};
+
+/* ============================================================== 08 PREVIEW */
 function renderPreview() {
   const rows = Schedule.previewToday();
   const KIND = { briefing: 'Morning briefing', med: 'Medication', appt: 'Appointment', reminisce: 'Reminiscence' };
@@ -817,6 +923,32 @@ function render() {
       <div class="voice sm" style="margin-top:4px">${esc(x.detail)}</div></div>
       <button class="btn sm" data-srm="${x.id}">Remove</button></div>`, 'No memories yet.');
   $('storyList').querySelectorAll('[data-srm]').forEach(b => b.onclick = () => { Store.removeStory(b.dataset.srm); Store.save(); render(); });
+
+  /* things */
+  $('cThings').textContent = s.objects.length;
+  $('objPill').textContent = s.objects.length;
+  listBlock($('objList'), s.objects, o => `
+    <div class="prow"><div class="who">
+      <b>${esc(o.name)}</b>
+      <span>${o.tagged ? '<span class="pill g">tagged</span> ' : ''}lives in ${esc(o.home)}</span>
+      ${o.lastSeen ? `<div class="tiny mono" style="margin-top:3px">last seen: ${esc(o.lastSeen.place)}</div>` : ''}
+      <div class="voice sm" style="margin-top:4px">Your ${esc(o.name)} lives in ${esc(o.home)}.</div>
+    </div>
+    <button class="btn sm" data-orm="${o.id}">Remove</button></div>`, 'Nothing added yet.');
+  $('objList').querySelectorAll('[data-orm]').forEach(b => b.onclick = () => {
+    Store.removeObject(b.dataset.orm); Store.save(); render();
+  });
+
+  /* safe zone */
+  const z = s.zones[0];
+  $('zonePill').textContent = z ? `${z.radiusM}m` : 'not set';
+  $('zonePill').className = 'right pill ' + (z ? 'g' : '');
+  $('zList').innerHTML = z
+    ? `<div class="note g"><b>${esc(z.label)}</b> &middot; ${z.radiusM}m radius
+         <div class="tiny mono" style="margin-top:3px">${z.lat.toFixed(5)}, ${z.lng.toFixed(5)}</div>
+         <button class="btn sm" id="zDel" style="margin-top:7px">Remove zone</button></div>`
+    : '';
+  if ($('zDel')) $('zDel').onclick = () => { Store.removeZone(z.id); render(); };
 
   const sel = $('vPerson'), cur = sel.value;
   sel.innerHTML = `<option value="">— choose —</option>` + s.people.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
