@@ -1,0 +1,5 @@
+# serve.py is for running locally. Vercel serves these files statically —
+# it must not try to turn a Python file into a serverless function.
+serve.py
+__pycache__/
+.git/
