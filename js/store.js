@@ -562,6 +562,88 @@ const Store = {
     this.save();
   },
 
+  /* ==========================================================================
+     EDITING
+
+     Everything here could be added and deleted, and almost nothing could be
+     CHANGED. That is a data-loss trap wearing the clothes of a simple API: to
+     fix a typo in his daughter's name, or to replace a blurry enrolment photo,
+     you had to delete her — and deleting her destroyed her retrieval ladder,
+     her trial history and her entire memory vault. Eleven weeks of
+     conversations, gone, to correct a spelling.
+
+     So: update in place, and keep the history.
+     ========================================================================*/
+
+  /** Generic patch for the simple collections. */
+  update(collection, id, patch) {
+    const list = this.s[collection];
+    if (!Array.isArray(list)) return null;
+    const item = list.find(x => x.id === id);
+    if (!item) return null;
+    Object.keys(patch).forEach(k => {
+      if (patch[k] !== undefined) item[k] = patch[k];
+    });
+    this.audit(collection + '.update', item.label || item.name || item.title || id);
+    this.save();
+    return item;
+  },
+
+  updateMed(id, patch)         { return this.update('meds', id, patch); },
+  updatePlace(id, patch)       { return this.update('places', id, patch); },
+  updateObject(id, patch)      { return this.update('objects', id, patch); },
+  updateStory(id, patch)       { return this.update('lifeStory', id, patch); },
+  updateZone(id, patch)        { return this.update('zones', id, patch); },
+  updateTag(id, patch)         { return this.update('tags', id, patch); },
+  updateAppointment(id, patch) { return this.update('appointments', id, patch); },
+
+  /**
+   * Change a person without losing who they have been.
+   *
+   * The vault, the cue ladder and the trial history are deliberately NOT
+   * touched. A new photograph of the same daughter is still the same daughter;
+   * she does not go back to stage 0 and forget that they have talked ninety
+   * times, and he is not made to start relearning her name because someone
+   * took a better picture.
+   *
+   * Passing a new descriptor DOES replace the face vector, because that is the
+   * one thing a re-enrolment is for. Pass `null` to leave it alone.
+   */
+  updatePerson(id, { name, relation, memory, photo, descriptor } = {}) {
+    const p = this.person(id);
+    if (!p) return null;
+    const before = p.name;
+
+    if (name !== undefined && name !== null && String(name).trim()) p.name = String(name).trim();
+    if (relation !== undefined && relation !== null) p.relation = String(relation).trim();
+    if (memory !== undefined && memory !== null) {
+      p.memory = String(memory).trim();
+      // The single memory string is also the first pinned note in the vault.
+      // Leaving the two out of step is how a family edits something on one
+      // screen and hears the old version out of the glasses that afternoon.
+      if (typeof Vault !== 'undefined') {
+        const v = Vault.of(p);
+        const pinned = v.notes.find(n => n.pinned && n.source === 'family');
+        if (pinned) pinned.text = p.memory;
+        else if (p.memory) v.notes.unshift({ id: 'n' + this._id(''), text: p.memory,
+                                             source: 'family', ts: Date.now(), pinned: true });
+      }
+    }
+    if (photo !== undefined) p.photo = photo;          // null clears it deliberately
+    if (descriptor && descriptor.length) {
+      p.descriptor = Array.from(descriptor);
+      p.refaced = Date.now();
+      this.audit('person.reface', `${p.name}: new face descriptor, history kept`);
+    }
+
+    // The sample record stops being a sample the moment a human edits it.
+    if (p.seeded) delete p.seeded;
+
+    this.audit('person.update', before === p.name ? p.name : `${before} → ${p.name}`);
+    this.save();
+    return p;
+  },
+
   /* ----------------------------------------------------------- people */
   addPerson({ name, relation, memory, photo, descriptor }) {
     const p = {
@@ -658,13 +740,28 @@ const Store = {
     return this.s.appointments.filter(a => a.when >= now).sort((a, b) => a.when - b.when).slice(0, limit);
   },
 
-  addPlace(p)     { this.s.places.push({ id: this._id('p'), ...p }); this.audit('place.create', p.label); },
+  /* Every add* returns the thing it created. addPerson and addAppointment
+     always did; the rest silently returned undefined, so any new UI that tried
+     `const o = Store.addObject(...)` got undefined and failed one line later
+     on a property access. Consistency here is not tidiness, it is the
+     difference between an API you can use without reading it and one you
+     cannot. */
+  addPlace(p) {
+    const rec = { id: this._id('p'), ...p };
+    this.s.places.push(rec); this.audit('place.create', p.label); return rec;
+  },
   removePlace(id) { this.s.places = this.s.places.filter(x => x.id !== id); this.audit('place.delete', id); },
 
-  addStory(s2)     { this.s.lifeStory.push({ id: this._id('l'), ...s2 }); this.audit('story.create', s2.label); },
+  addStory(s2) {
+    const rec = { id: this._id('l'), ...s2 };
+    this.s.lifeStory.push(rec); this.audit('story.create', s2.label); return rec;
+  },
   removeStory(id)  { this.s.lifeStory = this.s.lifeStory.filter(x => x.id !== id); this.audit('story.delete', id); },
 
-  addMed(m)     { this.s.meds.push({ id: this._id('m'), ...m }); this.audit('medication.create', m.name); },
+  addMed(m) {
+    const rec = { id: this._id('m'), ...m };
+    this.s.meds.push(rec); this.audit('medication.create', m.name); return rec;
+  },
   removeMed(id) { this.s.meds = this.s.meds.filter(x => x.id !== id); this.audit('medication.delete', id); },
 
   /* ---------------------------------------------------- episodic facts
@@ -700,9 +797,13 @@ const Store = {
   proposedFacts() { return this.s.facts.filter(f => f.status === 'proposed'); },
 
   /* --------------------------------------------------------- objects */
-  addObject(o)     { this.s.objects.push({ id: this._id('o'), lastSeen: null, tagged: false,
-                                           cue: newCue(), trials: [], ...o });
-                     this.audit('object.create', o.name); },
+  addObject(o) {
+    const rec = { id: this._id('o'), lastSeen: null, tagged: false,
+                  cue: newCue(), trials: [], ...o };
+    this.s.objects.push(rec);
+    this.audit('object.create', o.name);
+    return rec;
+  },
   removeObject(id) { this.s.objects = this.s.objects.filter(x => x.id !== id); this.audit('object.delete', id); },
   findObject(name) {
     const n = (name || '').toLowerCase();
@@ -718,9 +819,14 @@ const Store = {
   },
 
   /* ------------------------------------------------------ daily plan */
-  addPlan(p)     { this.s.plan.push({ id: this._id('pl'), kind: 'task', done: null, ...p });
-                   this.s.plan.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-                   this.audit('plan.create', `${p.time} ${p.title}`); this.save(); },
+  addPlan(p) {
+    const rec = { id: this._id('pl'), kind: 'task', done: null, ...p };
+    this.s.plan.push(rec);
+    this.s.plan.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    this.audit('plan.create', `${p.time} ${p.title}`);
+    this.save();
+    return rec;
+  },
   removePlan(id) { const p = this.s.plan.find(x => x.id === id);
                    this.s.plan = this.s.plan.filter(x => x.id !== id);
                    this.audit('plan.delete', p ? p.title : id); this.save(); },
@@ -739,8 +845,13 @@ const Store = {
   planToday() { return this.s.plan.slice().sort((a, b) => (a.time || '').localeCompare(b.time || '')); },
 
   /* ------------------------------------------------ bluetooth tags */
-  addTag(t)     { this.s.tags.push({ id: this._id('t'), paired: false, lastSeen: null, ...t });
-                  this.audit('tag.pair', t.name); this.save(); },
+  addTag(t) {
+    const rec = { id: this._id('t'), paired: false, lastSeen: null, ...t };
+    this.s.tags.push(rec);
+    this.audit('tag.pair', t.name);
+    this.save();
+    return rec;
+  },
   removeTag(id) { const t = this.s.tags.find(x => x.id === id);
                   this.s.tags = this.s.tags.filter(x => x.id !== id);
                   this.audit('tag.remove', t ? t.name : id); this.save(); },
@@ -822,8 +933,13 @@ const Store = {
   },
 
   /* ----------------------------------------------------- safe zones */
-  addZone(z)     { this.s.zones.push({ id: this._id('z'), radiusM: 250, ...z });
-                   this.audit('zone.create', `${z.label} r=${z.radiusM || 250}m`); this.save(); },
+  addZone(z) {
+    const rec = { id: this._id('z'), radiusM: 250, ...z };
+    this.s.zones.push(rec);
+    this.audit('zone.create', `${z.label} r=${z.radiusM || 250}m`);
+    this.save();
+    return rec;
+  },
   removeZone(id) { this.s.zones = this.s.zones.filter(x => x.id !== id); this.audit('zone.delete', id); this.save(); },
 
   /* -------------------------------------------- scheduler dedupe keys */

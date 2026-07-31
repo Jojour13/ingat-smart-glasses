@@ -508,6 +508,9 @@
 Store.load(); Store.listen(); Speech.init();
 const $ = id => document.getElementById(id);
 const esc = s => (s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* Announce to a screen reader. A save that changes nothing visible above the
+   fold is a save that a non-sighted user cannot tell happened. */
+const say = m => { const l = $('live'); if (l) l.textContent = m; };
 
 /* ------------------------------------------------------------ nav */
 $('steps').addEventListener('click', e => {
@@ -919,7 +922,7 @@ function renderDay() {
       <span class="knot"></span>
       <div class="card2">
         <span class="kind ${p.kind || 'task'}">${esc(p.kind || 'task')}</span>
-        <h4>${esc(p.title)}</h4>
+        <h3>${esc(p.title)}</h3>
         ${p.detail ? `<p>${esc(p.detail)}</p>` : ''}
         <div class="acts">
           <button class="btn sm" data-say="${esc(p.detail ? p.title + '. ' + p.detail : p.title + '.')}">Hear it</button>
@@ -1080,6 +1083,139 @@ function listBlock(el, items, fmt, emptyText) {
   el.innerHTML = items.length ? items.map(fmt).join('') : `<div class="empty">${emptyText}</div>`;
 }
 
+/* ==========================================================================
+   EDITING A PERSON
+
+   Without this the only way to fix a misspelt name or replace a blurry photo
+   was to delete the person — which also deleted their retrieval ladder and
+   every conversation kept about them. Nobody would expect that, and by the
+   time they found out it would be gone.
+
+   Everything here updates in place. The vault, the ladder and the trial
+   history survive, because a better photograph of your daughter is still your
+   daughter.
+   ========================================================================*/
+let openEditorId = null;
+
+function openEditor(id) {
+  const p = Store.person(id);
+  const box = $('ed-' + id);
+  if (!p || !box) return;
+
+  // one at a time, so the page does not become a wall of open forms
+  if (openEditorId && openEditorId !== id) {
+    const prev = $('ed-' + openEditorId);
+    if (prev) { prev.hidden = true; prev.innerHTML = ''; }
+  }
+  if (!box.hidden) { box.hidden = true; box.innerHTML = ''; openEditorId = null; return; }
+
+  openEditorId = id;
+  box.hidden = false;
+  const v = Vault.of(p);
+  const kept = (v.sessions || []).length;
+
+  box.innerHTML = `
+    <div style="padding:14px 15px;background:var(--band);border-top:1px solid var(--rule)">
+      <label class="fld"><span>Name</span>
+        <input type="text" id="e-name-${id}" value="${esc(p.name || '')}"></label>
+      <label class="fld"><span>Relationship</span>
+        <input type="text" id="e-rel-${id}" value="${esc(p.relation || '')}"></label>
+      <label class="fld"><span>What he hears about them</span>
+        <textarea id="e-mem-${id}">${esc(p.memory || '')}</textarea></label>
+
+      <div style="border-top:1px solid var(--rule);padding-top:12px;margin-top:4px">
+        <span class="lbl">Their photograph and face</span>
+        <div class="row" style="gap:12px;align-items:flex-start;margin-bottom:9px">
+          <div id="e-thumb-${id}">
+            ${p.photo ? `<img class="avatar" style="width:64px;height:64px" src="${esc(p.photo)}" alt="">`
+                      : `<div class="avatar ph" style="width:64px;height:64px">${esc(Fmt.initials(p.name))}</div>`}
+          </div>
+          <div style="flex:1;min-width:0">
+            <input type="file" id="e-photo-${id}" accept="image/*">
+            <p class="tiny" style="margin:7px 0 0" id="e-status-${id}">
+              ${p.descriptor && p.descriptor.length === 128
+                ? 'A face is on file, so they can be recognised. A new photo replaces it.'
+                : 'No face on file yet — a clear, front-on photo will add one.'}
+            </p>
+          </div>
+        </div>
+        <div class="note" style="margin:0">
+          <b>Nothing is lost by editing.</b>
+          ${kept ? `The ${kept} conversation${kept === 1 ? '' : 's'} kept about ${esc(p.name)}, their notes,
+             and how far they had got at being remembered all stay exactly as they are.`
+                 : `Their notes and progress stay exactly as they are.`}
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:13px">
+        <button class="btn p sm" id="e-save-${id}">Save changes</button>
+        <button class="btn sm" id="e-cancel-${id}">Cancel</button>
+        <span class="spacer"></span>
+        <span class="tiny" id="e-msg-${id}"></span>
+      </div>
+    </div>`;
+
+  /* A new photograph: read it, find a face, and show what will happen BEFORE
+     anything is saved. Silently swapping someone's face vector on the strength
+     of a blurry picture is how a product starts calling people by the wrong
+     name. */
+  let pendingPhoto, pendingDescriptor;
+  $('e-photo-' + id).onchange = async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const st = $('e-status-' + id);
+    st.textContent = 'Opening the photo…';
+    const loaded = await Vision.loadImage(file);
+    if (loaded.error) {
+      st.innerHTML = `<b style="color:var(--red)">${esc(loaded.error)}</b>`;
+      return;
+    }
+    pendingPhoto = loaded.thumb;
+    $('e-thumb-' + id).innerHTML =
+      `<img class="avatar" style="width:64px;height:64px" src="${loaded.thumb}" alt="">`;
+    st.textContent = 'Looking for a face…';
+    let faces = [];
+    try { faces = await Vision.facesFromImage(loaded.img); } catch (_) {}
+    if (!faces.length) {
+      pendingDescriptor = null;
+      st.innerHTML = `<b style="color:var(--amber)">No face found in that photo.</b> `
+        + `The picture will be updated, but the face on file stays as it is. `
+        + `Try a clearer, front-on photo of one person.`;
+      return;
+    }
+    if (faces.length > 1) {
+      pendingDescriptor = faces[0].descriptor;
+      st.innerHTML = `<b>${faces.length} faces in that photo.</b> The largest one will be used. `
+        + `A photo of just ${esc(p.name)} is safer.`;
+      return;
+    }
+    pendingDescriptor = faces[0].descriptor;
+    st.innerHTML = `<b style="color:var(--green)">A face was found.</b> `
+      + `Saving will replace the face on file, and ${esc(p.name)} keeps everything else.`;
+  };
+
+  $('e-cancel-' + id).onclick = () => { box.hidden = true; box.innerHTML = ''; openEditorId = null; };
+
+  $('e-save-' + id).onclick = () => {
+    const name = $('e-name-' + id).value.trim();
+    if (!name) {
+      $('e-msg-' + id).innerHTML = '<b style="color:var(--red)">A name is needed.</b>';
+      $('e-name-' + id).focus();
+      return;
+    }
+    Store.updatePerson(id, {
+      name,
+      relation: $('e-rel-' + id).value,
+      memory: $('e-mem-' + id).value,
+      photo: pendingPhoto !== undefined ? pendingPhoto : undefined,
+      descriptor: pendingDescriptor || null,
+    });
+    openEditorId = null;
+    say(`Saved. ${name} keeps their history.`);
+    render();
+  };
+}
+
 function render() {
   const s = Store.s;
 
@@ -1144,12 +1280,31 @@ function render() {
           Remove and re-add with a clearer, front-on photo &mdash; or enrol them from the
           camera on the <a href="index.html">Home page</a>, which works better.</div>`}
       </div>
-      <button class="btn sm" data-rm="${p.id}">Remove</button>
-    </div>`;
+      <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:5px">
+        <button class="btn sm" data-edit="${p.id}">Edit</button>
+        <button class="btn sm" data-rm="${p.id}">Remove</button>
+      </div>
+    </div>
+    <div id="ed-${p.id}" class="editor" hidden></div>`;
   }, 'Nobody yet. Drop some photos above.');
+
+  $('pplList').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openEditor(b.dataset.edit));
+
   $('pplList').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
-    if (confirm('Remove this person and destroy their face descriptor?')) {
-      Store.audit('person.delete', Store.person(b.dataset.rm)?.name || b.dataset.rm);
+    const p = Store.person(b.dataset.rm);
+    if (!p) return;
+    const v = Vault.of(p);
+    const n = (v.sessions || []).length;
+    // Naming what is about to be lost, because "are you sure?" is not consent.
+    // If they only wanted to fix a name or a photo, Edit does that and keeps
+    // all of this — so say so here, where the mistake would be made.
+    const warn = n
+      ? `Remove ${p.name}?\n\nThis also destroys ${n} conversation${n === 1 ? '' : 's'} kept about `
+        + `them, their notes, and how far they had got at remembering ${p.name}.\n\n`
+        + `To change a name, a photo or a face, use Edit instead — that keeps everything.`
+      : `Remove ${p.name} and destroy their face descriptor?`;
+    if (confirm(warn)) {
+      Store.audit('person.delete', p.name || b.dataset.rm);
       Store.removePerson(b.dataset.rm); render();
     }
   });

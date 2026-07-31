@@ -86,7 +86,7 @@
           <div class="consent-step" id="cs1">
             <div class="num">1</div>
             <div class="bd2">
-              <h4>Explain it to him, in his own language</h4>
+              <h3>Explain it to him, in his own language</h3>
               <p class="sub" style="margin-bottom:8px">
                 Read aloud through the glasses, in the language he thinks in, slowed to
                 his speech profile. This is the &ldquo;practicable support&rdquo; the Act
@@ -94,6 +94,7 @@
               </p>
               <div class="voice sm" id="consentScript"></div>
               <div class="row" style="margin-top:10px">
+                <label class="lbl" for="cLang">Language to read it in</label>
                 <select id="cLang" style="max-width:190px">
                   <option value="en-SG">English</option>
                   <option value="zh-CN">中文 Mandarin</option>
@@ -113,7 +114,7 @@
           <div class="consent-step" id="cs2">
             <div class="num">2</div>
             <div class="bd2">
-              <h4>What he agreed to</h4>
+              <h3>What he agreed to</h3>
               <p class="sub" style="margin-bottom:8px">
                 Granular, because the PDPA's <b>Purpose Limitation</b> obligation means
                 consent for one purpose is not consent for another. He can say yes to
@@ -126,9 +127,10 @@
           <div class="consent-step" id="cs3">
             <div class="num">3</div>
             <div class="bd2">
-              <h4>His decision</h4>
+              <h3>His decision</h3>
               <div class="row" style="margin-top:6px">
-                <input type="text" id="cDonor" placeholder="His name" style="max-width:200px">
+                <label class="lbl" for="cDonor">His name</label>
+                <input type="text" id="cDonor" placeholder="Tan Ah Kow" style="max-width:200px">
                 <button class="btn g" id="cYes">He agreed</button>
                 <button class="btn" id="cNo">He declined</button>
               </div>
@@ -138,7 +140,7 @@
           <div class="consent-step" id="cs4">
             <div class="num">4</div>
             <div class="bd2">
-              <h4>Co-signed by the donee</h4>
+              <h3>Co-signed by the donee</h3>
               <p class="sub" style="margin-bottom:8px">
                 Under an LPA the donor grants authority over <b>personal welfare</b>,
                 <b>property &amp; affairs</b>, or both. A property donee cannot make
@@ -146,8 +148,11 @@
                 &mdash; so we record which scope you actually hold.
               </p>
               <div class="row">
-                <input type="text" id="cDonee" placeholder="Your name" style="max-width:170px">
+                <label class="lbl" for="cDonee">Your name</label>
+                <input type="text" id="cDonee" placeholder="Mei Ling" style="max-width:170px">
+                <label class="lbl" for="cRel">Your relationship to him</label>
                 <input type="text" id="cRel" placeholder="Daughter" style="max-width:120px">
+                <label class="lbl" for="cScope">Which authority you hold</label>
                 <select id="cScope" style="max-width:200px">
                   <option value="personal-welfare">LPA — personal welfare</option>
                   <option value="both">LPA — welfare + property</option>
@@ -258,9 +263,15 @@
             <b>Data Protection Officer</b><br>
             <span id="dpoLine">not appointed</span>
           </div>
-          <div class="row" style="margin-top:8px">
-            <input type="text" id="dpoName" placeholder="DPO name" style="max-width:130px">
-            <input type="text" id="dpoEmail" placeholder="dpo@…" style="max-width:150px">
+          <div class="row" style="margin-top:8px;align-items:flex-end">
+            <div>
+              <label class="lbl" for="dpoName">Officer's name</label>
+              <input type="text" id="dpoName" placeholder="Mei Ling Tan" style="max-width:150px">
+            </div>
+            <div>
+              <label class="lbl" for="dpoEmail">Contact email</label>
+              <input type="text" id="dpoEmail" placeholder="dpo@example.sg" style="max-width:170px">
+            </div>
             <button class="btn sm" id="dpoSave">Set</button>
           </div>
           <p class="tiny" style="margin:8px 0 0">
@@ -442,7 +453,7 @@ function renderStorage() {
     ['Faces and photos',     u.faces + u.photos,      '#2f5d50'],
     ['Where he went, sixty days', u.parts.lifespace || 0, '#57504a'],
     ['Everything else',      Math.max(0, u.total - (u.parts.activity || 0) - u.sessions
-                                     - u.faces - u.photos - (u.parts.lifespace || 0)), '#b6aca4'],
+                                     - u.faces - u.photos - (u.parts.lifespace || 0)), '#8b8179'],
   ].filter(r => r[1] > 0);
 
   $('storeTotal').innerHTML = `<b>${KB(u.total)}</b> of about 5 MB &middot; ${u.percent}%`;

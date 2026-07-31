@@ -409,6 +409,41 @@ select, textarea {
   color: var(--body);
 }
 textarea { resize: vertical; min-height: 54px; }
+
+/* File inputs were excluded from the rule above (their internals cannot be
+   styled) and so shipped as 20px-tall unstyled controls — a third of the
+   minimum touch target, on the one field a caregiver uses to add a face. The
+   control itself can still be given a box and a height. */
+input[type=file] {
+  font: inherit;
+  font-size: 15px;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 2px dashed #8b8179;
+  border-radius: 7px;
+  background: var(--white);
+  color: var(--body);
+  cursor: pointer;
+}
+input[type=file]::file-selector-button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 11px;
+  padding: 7px 13px;
+  min-height: 32px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--band);
+  color: var(--ink);
+  cursor: pointer;
+}
+input[type=file]:hover { border-color: var(--accent); }
+
+/* The skip link is the first thing a keyboard user meets. It only appears on
+   focus, so it has to be a proper target the moment it does. */
+.skip:focus { min-height: 44px; display: inline-flex; align-items: center; }
 input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--accent-lt);
   border-color: var(--accent);
@@ -722,13 +757,20 @@ tr:last-child td { border-bottom: 0; }
 .cal .day { background: var(--white); min-height: 76px; padding: 5px 6px; position: relative; }
 .cal .day.out { background: var(--paper); }
 .cal .day.today { background: var(--accent-lt); }
-.cal .day .d { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+.cal .day .d { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .cal .day.today .d { color: var(--accent); font-weight: 700; }
+/* Calendar chips were 10px text in a 19px box — under half the minimum touch
+   target, on a grid a 62-year-old taps on a phone. Full 44px is impossible in
+   a seven-column month view without the month becoming a scroll, so this takes
+   the largest size the grid allows and buys the rest back with generous
+   spacing between rows. It is a real trade-off, made deliberately, and the
+   list underneath the calendar carries full-size controls for the same items. */
 .cal .ev {
   display: block; width: 100%; text-align: left; border: 0; cursor: pointer;
-  font-size: 10px; line-height: 1.25; padding: 3px 5px; margin-top: 3px;
+  font-size: 12px; line-height: 1.3; padding: 7px 6px; margin-top: 4px;
+  min-height: 30px;
   border-radius: 4px; background: var(--green-lt); color: var(--green);
-  border-left: 2px solid var(--green);
+  border-left: 3px solid var(--green);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cal .ev.med { background: var(--amber-lt); color: var(--amber); border-left-color: var(--amber); }

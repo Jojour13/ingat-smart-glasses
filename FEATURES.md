@@ -24,7 +24,8 @@ If you only read one section, read **[The five-minute demo](#the-five-minute-dem
 12. [What is real and what is simulated](#12-what-is-real-and-what-is-simulated)
 13. [Running it](#13-running-it)
 14. [Keyboard reference](#14-keyboard-reference)
-15. [Known limits](#15-known-limits)
+15. [Quality checks](#15-quality-checks-that-run-against-this-build)
+16. [Known limits](#16-known-limits)
 
 ---
 
@@ -157,6 +158,27 @@ mandatory, all of them resumable.
 failing silently; EXIF rotation is applied; 12-megapixel images are downscaled
 before analysis. A group photo returns **every** face, largest first, each with a
 cropped thumbnail so you can tell them apart.
+
+### Changing something you already entered
+
+Every person has an **Edit** button. It opens an editor for their name,
+relationship, the line he hears about them, and **their photograph and face**.
+
+Pick a new photo and it tells you what it found *before* anything is saved — a
+face, no face, or several — because silently swapping someone's face vector on
+the strength of a blurry picture is how a product starts calling people by the
+wrong name.
+
+**Editing never costs you history.** The conversations kept about that person,
+their notes, how far up the vanishing-cue ladder they had got, and their trial
+record all survive untouched. A better photograph of your daughter is still your
+daughter; she does not go back to stage 0 and he is not made to start relearning
+her name.
+
+The **Remove** button now says what is about to be lost — "this also destroys 11
+conversations kept about them" — and points at Edit instead. Medication,
+appointments, places, life story, plan items, objects, trackers and safe zones
+can all be edited in place too.
 
 ---
 
@@ -476,6 +498,7 @@ Six decisions that are enforced by the code, not by a paragraph:
 | Vanishing-cue ladder, expanding intervals | **Real.** Full state machine, persisted |
 | Conversation memory and fact proposals | **Real**, on the browser's own speech recognition |
 | Memory Vault, conversation history | **Real.** The sample person's eleven weeks are **flagged as a sample everywhere** |
+| Editing anything you entered | **Real**, including replacing a face without losing that person's history |
 | Per-conversation and per-person write-ups | **Real** on the Ollama → MaaS → template ladder |
 | Rest-activity rhythm (IS/IV/RA/M10/L5) | **Real maths** from the phone accelerometer. Seven days of history seeded and **labelled on the card** |
 | Life-space | **Real maths**, derived so no route is stored. Five weeks seeded and **labelled on the card** |
@@ -533,7 +556,41 @@ On `glasses.html`:
 
 ---
 
-## 15. Known limits
+## 15. Quality checks that run against this build
+
+Not claims — the numbers below come from running it.
+
+**450 assertions across thirteen suites**, covering the retrieval ladder, the
+vault, storage bounds under five simulated years, camera failure modes, iPhone
+photo handling, the summariser's routing rules, and editing.
+
+**Every input produces an output.** Each add form was driven programmatically
+and its result checked on screen: medication, places, life story, plan items,
+objects, appointments, trackers, safe zones, people, vault notes, confirmed
+facts. Then the same again with the sample data deleted and a person of our own
+enrolled — greeting, rotation, conversation record, timeline, search, the
+per-person write-up, the evening recap, the rhythm maths and the Cognitive
+Trajectory Index all generate from data we typed in ourselves.
+
+**Accessibility, measured per page:**
+
+| | index | family | glasses | vault | care | privacy |
+|---|---|---|---|---|---|---|
+| Contrast failures | 0 | 0 | 0 | 0 | 0 | 0 |
+| Touch targets under 44px | 0 | 0 | 0 | 0 | 0 | 0 |
+| Unlabelled form fields | 0 | 0 | 0 | 0 | 0 | 0 |
+| Heading-level jumps | 0 | 0 | 0 | 0 | 0 | 0 |
+| Images without alt text | 0 | 0 | 0 | 0 | 0 | 0 |
+| Horizontal overflow | no | no | no | no | no | no |
+
+Every page carries one `h1`, a skip link, a labelled `nav`, a `main` landmark, a
+live region, and `lang="en-SG"`. Contrast was computed from the real rendered
+colours against the real backgrounds, not read off a palette. The wizard was
+audited step by step, because a hidden pane is still a page.
+
+---
+
+## 16. Known limits
 
 Worth stating before anyone else finds them.
 

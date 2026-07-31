@@ -33,6 +33,12 @@
 
 <main class="wrap" id="main">
 
+  <!-- Every page needs exactly one h1: it is what a screen reader announces as
+       the page's identity, and this one had none, so the document began at h2
+       with nothing above it. Visually hidden because the top bar already says
+       where you are and a second visible title would just be noise. -->
+  <h1 class="visually-hidden">Glasses view — operator console</h1>
+
   <div class="note w" style="margin-bottom:16px">
     <b>This screen is not what the wearer sees.</b> The wearer has no display —
     the glasses only speak into his ear. This console exists so an audience can
@@ -59,10 +65,10 @@
             Press <b style="color:#e0d8d0">Start glasses</b> to load the local
             recognition models and open the camera. Nothing leaves this machine.
             <br><br>
-            <span style="color:#7d756e">Only one page can hold the camera at a time &mdash;
+            <span style="color:#a49b93">Only one page can hold the camera at a time &mdash;
             close any other tab of this app first.</span>
           </div>
-          <div class="mono" id="phProg" style="font-size:11px;color:#7d756e"></div>
+          <div class="mono" id="phProg" style="font-size:13px;color:#a49b93"></div>
         </div>
       </div>
 
@@ -761,7 +767,7 @@ function render() {
         ? `<img class="avatar" src="${p.photo}" alt="">`
         : `<div class="avatar ph">${Fmt.initials(p.name)}</div>`}
       <div class="who">
-        <b>${p.name} <span class="tiny mono" style="color:#9a938c">[${i + 1}]</span></b>
+        <b>${p.name} <span class="tiny mono" style="color:var(--muted)">[${i + 1}]</span></b>
         <span>${p.relation || ''} &middot; ${p.trials.length} trials${pct !== null ? ` &middot; ${pct}% unaided` : ''}</span>
       </div>
       <div style="text-align:right">
