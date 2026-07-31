@@ -244,6 +244,50 @@ The two sentences are the only new text, and they are capped at two sentences an
 *"Your conversation never leaves the house" is either true or it is marketing,
 and the only way to keep it true is to make the code refuse.*
 
+### Doesn't keeping every conversation fill the device up?
+
+No — and the reason is the same reason the privacy design works: **what is kept
+is a description, not a recording.**
+
+Measured, not estimated:
+
+| | |
+|---|---|
+| One conversation record | **~320 bytes** |
+| One minute of 16 kHz mono audio | ~1.9 MB — **six thousand times more** |
+| Eleven conversations (the sample person) | 3.4 KB |
+| Seven days of movement data | 74.6 KB — *twenty times the conversations* |
+| Whole store, fully seeded | 89 KB, about **1.7%** of a browser's ~5 MB |
+
+The conversations are the cheapest thing in the store. The accelerometer costs
+twenty times more, and it is capped at seven days.
+
+**Nothing grows without a ceiling:**
+
+| Collection | Cap |
+|---|---|
+| Movement (activity) | 2,016 rows — 7 days at one per five minutes |
+| Life-space | 60 days, at most 40 coarse cells per day |
+| Conversations | 120 per person, and nothing older than a year |
+| Notes | 40 per person; pinned ones are never dropped |
+| Topics | 25 per person |
+| Visits | 60 per person |
+| Event log | 800 |
+| Audit trail | 400 |
+
+A simulated five years — six people, three visits a week, 780 conversations —
+leaves the whole store well under 400 KB. There is a test that runs exactly that.
+
+**If it ever did fill up**, `Store.save()` sheds in a deliberate order, least
+painful first: older photographs → all photographs → this week's movement → most
+of the event log → and only then the oldest half of the conversation history. A
+photograph can be taken again; an afternoon cannot. Whatever went is recorded and
+shown in the Trust Centre, because a device that silently deletes someone's
+history and carries on looking healthy is worse than one that runs out of room.
+
+All of this is live on **[the Trust Centre](privacy.html)** under *How much of
+him is on this device*.
+
 ### The sample record
 
 Mei Ling arrives with eleven weeks of history, because the vault's whole argument
@@ -333,6 +377,8 @@ Not a policy page. The working controls.
   decisions are supported, not substituted
 - **Six purposes**, each switchable on its own: recognition, reminders,
   conversation, location, trajectory, research
+- **How much of him is on this device** — a real measurement of the store, by
+  kind, with what would be deleted first if it ever ran out of room
 - **Export everything** — PDPA access and portability, as JSON
 - **Erase biometrics** — destroys every face descriptor and photo while keeping
   names and prompts, so the product degrades instead of dying

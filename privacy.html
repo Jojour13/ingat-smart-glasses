@@ -43,6 +43,29 @@
     </div>
   </div>
 
+  <!-- ============================================== how much of him -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="hd"><h2>How much of him is on this device</h2>
+      <span class="right telemetry" id="storeTotal">&mdash;</span></div>
+    <div class="bd">
+      <div id="storeShed"></div>
+      <div id="storeBar" style="height:14px;border-radius:7px;background:var(--band);
+           overflow:hidden;display:flex;margin-bottom:10px" role="img"
+           aria-label="Storage used, by kind"></div>
+      <table id="storeTable"></table>
+      <p style="font-family:var(--serif);font-size:17px;line-height:27px;
+                color:var(--ink);margin:14px 0 0;max-width:64ch" id="storeWords"></p>
+      <p class="tiny" style="margin:10px 0 0">
+        Everything here has a ceiling &mdash; seven days of movement, sixty days
+        of mobility, a year of conversations, a hundred and twenty per person.
+        Nothing grows without a limit, and nothing is uploaded. If the device
+        ever did run out of room it would drop photographs first and conversation
+        history last, because a photograph can be taken again and an afternoon
+        cannot.
+      </p>
+    </div>
+  </div>
+
   <div class="grid g-care">
     <div>
       <!-- ============================================== consent flow -->
@@ -396,6 +419,70 @@ $('bNuke').onclick = () => {
   Store.eraseEverything(); render();
 };
 
+/* ==========================================================================
+   HOW MUCH OF HIM IS ON THIS DEVICE
+
+   "You keep every conversation — doesn't that fill up?" is a fair question and
+   it deserves a number rather than a reassurance. This measures the actual
+   store and shows where the bytes went, which also happens to make the
+   product's best argument for it: the conversations are the cheapest thing
+   here, because what is kept is a description and not a recording.
+   ========================================================================*/
+const KB = n => n < 1024 ? n + ' B'
+              : n < 1024 * 1024 ? (n / 1024).toFixed(1) + ' KB'
+              : (n / 1048576).toFixed(2) + ' MB';
+
+function renderStorage() {
+  const u = Store.usage();
+  const h = Store.headroom();
+
+  const rows = [
+    ['Movement, seven days', u.parts.activity || 0,   '#7d5600'],
+    ['Conversations kept',   u.sessions,              '#b4472c'],
+    ['Faces and photos',     u.faces + u.photos,      '#2f5d50'],
+    ['Where he went, sixty days', u.parts.lifespace || 0, '#57504a'],
+    ['Everything else',      Math.max(0, u.total - (u.parts.activity || 0) - u.sessions
+                                     - u.faces - u.photos - (u.parts.lifespace || 0)), '#b6aca4'],
+  ].filter(r => r[1] > 0);
+
+  $('storeTotal').innerHTML = `<b>${KB(u.total)}</b> of about 5 MB &middot; ${u.percent}%`;
+
+  $('storeBar').innerHTML = rows.map(([label, bytes, colour]) =>
+    `<span style="width:${(bytes / u.total * 100).toFixed(1)}%;background:${colour}"
+           title="${label}"></span>`).join('');
+
+  $('storeTable').innerHTML = '<tr><th>What</th><th style="text-align:right">Size</th>'
+    + '<th style="text-align:right">Share</th></tr>'
+    + rows.map(([label, bytes, colour]) => `<tr>
+        <td><span style="display:inline-block;width:9px;height:9px;border-radius:2px;
+             background:${colour};margin-right:7px"></span>${label}</td>
+        <td class="mono" style="text-align:right">${KB(bytes)}</td>
+        <td class="mono" style="text-align:right">${(bytes / u.total * 100).toFixed(0)}%</td>
+      </tr>`).join('');
+
+  // If anything was ever deleted to make room, say so. A device that silently
+  // throws away someone's history and carries on looking healthy is worse than
+  // one that runs out of room.
+  if (Store.shed) {
+    $('storeShed').innerHTML = `<div class="note r" style="margin:0 0 12px">
+      <b>Some history was deleted to make room</b>, on
+      ${new Date(Store.shed.ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}.
+      What went: ${Store.shed.dropped.join(', ')}.</div>`;
+  } else {
+    $('storeShed').innerHTML = '';
+  }
+
+  const per = u.perSession || 390;
+  $('storeWords').innerHTML = u.sessionCount
+    ? `${u.sessionCount} conversation${u.sessionCount === 1 ? '' : 's'} are kept here, and they take
+       <b>${KB(u.sessions)}</b> between them &mdash; about ${per} bytes each. One minute of
+       recorded audio would be roughly 1.9 MB, so a single recorded visit would cost more than
+       <b>five thousand</b> of these. There is room for about
+       <b>${h.conversations.toLocaleString('en-GB')}</b> more.`
+    : `Nothing has been kept yet. A conversation costs about 390 bytes here &mdash; one minute
+       of recorded audio would be roughly 1.9 MB, five thousand times more.`;
+}
+
 /* ------------------------------------------------------------- render */
 function render() {
   const s = Store.s, c = s.consent;
@@ -410,6 +497,8 @@ function render() {
     <div class="kpi"><b>0</b><span>conversations recorded</span></div>
     <div class="kpi"><b>0</b><span>video frames stored</span></div>
     <div class="kpi"><b>0</b><span>strangers identified</span></div>`;
+
+  renderStorage();
 
   /* consent status */
   const signed = !!c.donor.signedTs;

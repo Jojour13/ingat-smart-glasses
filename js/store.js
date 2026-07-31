@@ -115,7 +115,9 @@ function seedActivity(epochMin, days) {
     if (h >= wake) v *= busy;                                      // daytime only
     if (dayKey % 5 === 2 && h >= 2 && h < 3.5) v = 0.45;
     v *= 0.35 + noise(t) * 1.3;                                    // ×0.35-1.65
-    rows.push({ t, v: +v.toFixed(3), n: 1, seeded: true });
+    // No `n`. The sample count only matters while an epoch is still open, and
+    // carrying it on two thousand historical rows costs 16 KB to say nothing.
+    rows.push({ t, v: +v.toFixed(3), seeded: true });
   }
   return rows;
 }
@@ -426,15 +428,131 @@ const Store = {
     return this.s;
   },
 
+  /* ==========================================================================
+     STORAGE — why keeping every conversation is affordable
+
+     A conversation record is about 390 bytes: who, when, how long, six topic
+     words, the approved moments, and two sentences. The conversation itself is
+     not in there, which is the point — the privacy decision and the storage
+     decision are the same decision, and both were made once.
+
+     For scale: one minute of 16 kHz mono audio is roughly 1.9 MB. A single
+     recorded visit would cost more than five thousand of these records. A
+     product that stored the audio would need a server, a bill, and a very
+     different conversation with the family about what happens to it.
+
+     Everything here is bounded. Nothing grows without a ceiling:
+
+       activity    2,016 rows   7 days at one per five minutes
+       lifespace      60 rows   one per day, ~40 coarse cells each
+       events        800 rows
+       audit         400 rows
+       sessions      120 per person, and nothing older than a year
+       notes          40 per person, pinned ones never dropped
+       topics         25 per person
+       visits         60 per person
+
+     So the store cannot run away. What it CAN do is get fat on photographs and
+     face descriptors, which is why the quota ladder below sheds those first.
+     ========================================================================*/
+
+  /** Bytes, by section. Real measurement, not an estimate. */
+  usage() {
+    // UTF-8 bytes. TextEncoder where it exists; otherwise count the string,
+    // which is exact for the ASCII that all of this actually is.
+    const enc = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+    const size = v => {
+      const s = JSON.stringify(v) || '';
+      return enc ? enc.encode(s).length : s.length;
+    };
+    const parts = {};
+    Object.keys(this.s).forEach(k => { parts[k] = size(this.s[k]); });
+
+    const people = this.s.people || [];
+    const photos = people.reduce((n, p) => n + (p.photo ? size(p.photo) : 0), 0);
+    const faces = people.reduce((n, p) => n + size(p.descriptor || []), 0);
+    const sessions = people.reduce((n, p) =>
+      n + ((p.vault && p.vault.sessions) || []).reduce((m, s) => m + size(s), 0), 0);
+    const sessionCount = people.reduce((n, p) =>
+      n + ((p.vault && p.vault.sessions) || []).length, 0);
+
+    const total = size(this.s);
+    return {
+      total, parts,
+      photos, faces, sessions, sessionCount,
+      perSession: sessionCount ? Math.round(sessions / sessionCount) : 0,
+      // The practical browser ceiling. Not a spec number — Chrome, Edge, Safari
+      // and Firefox all land near 5 MB per origin for localStorage.
+      budget: 5 * 1024 * 1024,
+      percent: +(total / (5 * 1024 * 1024) * 100).toFixed(1),
+    };
+  },
+
+  /** What can still be added before the ceiling, in things a person counts. */
+  headroom() {
+    const u = this.usage();
+    const left = Math.max(0, u.budget - u.total);
+    return {
+      bytesLeft: left,
+      conversations: Math.floor(left / 400),
+      // A 420px enrolment thumbnail plus a 128-number descriptor.
+      people: Math.floor(left / 26000),
+    };
+  },
+
+  /* Shedding is not a transient condition — something was permanently deleted
+     to make room, and the family is entitled to know which. So this is a
+     sticky record, cleared only by a reset, not by the next successful save. */
+  shed: null,          // { ts, dropped: [] }
+
   save() {
     try {
       localStorage.setItem(KEY, JSON.stringify(this.s));
     } catch (e) {
-      // Descriptors + photos can push us over quota. Drop the oldest photos
-      // rather than losing the whole session.
-      console.warn('store: quota, trimming photos', e);
+      /* A quota ladder, shed in order of what is least painful to lose.
+         Photographs are decoration — recognition runs on the descriptor, so
+         dropping a photo costs a thumbnail and nothing else. The conversation
+         history is the last thing to go, and it goes oldest-first, because it
+         is the only thing here that cannot be recreated by asking someone. */
+      console.warn('store: over quota, shedding', e);
+      if (!this.shed) this.shed = { ts: Date.now(), dropped: [] };
+      this.shed.ts = Date.now();
+      const note = what => { if (!this.shed.dropped.includes(what)) this.shed.dropped.push(what); };
+
+      const attempt = () => {
+        try { localStorage.setItem(KEY, JSON.stringify(this.s)); return true; }
+        catch (_) { return false; }
+      };
+
+      // 1. every photo but the four most recent
+      note('older photographs');
       this.s.people.forEach((p, i) => { if (i < this.s.people.length - 4) p.photo = null; });
-      try { localStorage.setItem(KEY, JSON.stringify(this.s)); } catch (_) {}
+      if (attempt()) return this._broadcast();
+
+      // 2. all photos
+      note('all photographs');
+      this.s.people.forEach(p => { p.photo = null; });
+      if (attempt()) return this._broadcast();
+
+      // 3. movement history — it rebuilds itself in a week
+      note('this week of movement');
+      this.s.activity = [];
+      if (attempt()) return this._broadcast();
+
+      // 4. the event log back to the last hundred
+      note('most of the event log');
+      this.s.events = this.s.events.slice(-100);
+      if (attempt()) return this._broadcast();
+
+      // 5. the oldest half of every conversation history. Last resort, and the
+      // only one of these that cannot be recreated by asking somebody.
+      note('the oldest half of the conversation history');
+      this.s.people.forEach(p => {
+        if (p.vault && p.vault.sessions && p.vault.sessions.length > 20) {
+          p.vault.sessions = p.vault.sessions.slice(0, Math.ceil(p.vault.sessions.length / 2));
+        }
+      });
+      attempt();
     }
     this._broadcast();
   },
@@ -655,6 +773,10 @@ const Store = {
       last.n = (last.n || 1) + 1;
       last.v = last.v + (magnitude - last.v) / last.n;
     } else {
+      // A new epoch has started, so the previous row's sample count has done
+      // its job. `n` exists only to keep the running mean honest while the
+      // epoch is open; carrying it on 2,015 historical rows is pure weight.
+      if (last) { delete last.n; last.v = +last.v.toFixed(3); }
       a.push({ t, v: magnitude, n: 1 });
     }
     const keep = this.ACTIVITY_DAYS * 24 * 60 / this.EPOCH_MIN;
@@ -679,7 +801,11 @@ const Store = {
     // ~0.001 degree is about 110 m. Coarse enough that the cell is a
     // neighbourhood, not an address.
     const cell = fix.lat.toFixed(3) + ',' + fix.lng.toFixed(3);
-    if (!d.cells.includes(cell)) d.cells.push(cell);
+    // Capped. A long bus ride crosses a lot of 110 m squares, and the panel
+    // only ever reports HOW MANY places, never which — so an unbounded list
+    // would grow all day to answer a question nobody asked of it. Forty is far
+    // beyond any real day out and keeps one day's record under a kilobyte.
+    if (!d.cells.includes(cell) && d.cells.length < 40) d.cells.push(cell);
 
     // Time away must come from the CLOCK, not from a count of fixes — fixes
     // arrive irregularly, so counting them measured the sampling rate rather
